@@ -18,6 +18,9 @@ background:#0d0d10;
 color:#fff;
 font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
 }
+body{
+overscroll-behavior:none;
+}
 #app{
 width:100%;
 height:100%;
@@ -53,6 +56,7 @@ height:42px;
 min-width:42px;
 font-size:16px;
 font-weight:600;
+touch-action:manipulation;
 }
 button:disabled{
 opacity:.35;
@@ -72,7 +76,6 @@ width:100%;
 height:calc(100% - 62px);
 overflow:hidden;
 background:#fff;
-touch-action:none;
 }
 #viewer{
 position:absolute;
@@ -84,6 +87,7 @@ border:0;
 background:#fff;
 display:none;
 transform-origin:0 0;
+will-change:transform;
 }
 #status{
 position:absolute;
@@ -182,6 +186,7 @@ color:#ff6b6b!important;
 }
 </style>
 </head>
+
 <body>
 
 <div id="app">
@@ -192,17 +197,9 @@ color:#ff6b6b!important;
 MHTML Viewer
 </div>
 
-<button id="backButton" disabled>
-‹
-</button>
-
-<button id="forwardButton" disabled>
-›
-</button>
-
-<button id="openButton">
-MHTMLを開く
-</button>
+<button id="backButton" disabled>‹</button>
+<button id="forwardButton" disabled>›</button>
+<button id="openButton">MHTMLを開く</button>
 
 <input id="fileInput" type="file">
 
@@ -212,12 +209,13 @@ MHTMLを開く
 
 <div id="status">
 <strong>MHTML Viewer</strong>
-<span>
-MHTML / MHTファイルを選択してください
-</span>
+<span>MHTML / MHTファイルを選択してください</span>
 </div>
 
-<iframe id="viewer"></iframe>
+<iframe
+id="viewer"
+scrolling="yes"
+></iframe>
 
 <div id="zoomControls">
 <button id="zoomIn">＋</button>
@@ -250,59 +248,28 @@ MHTML / MHTファイルを選択してください
 
 <script>
 
-const fileInput=
-document.getElementById("fileInput");
+const fileInput=document.getElementById("fileInput");
+const openButton=document.getElementById("openButton");
+const viewer=document.getElementById("viewer");
+const viewerArea=document.getElementById("viewerArea");
+const status=document.getElementById("status");
+const title=document.getElementById("title");
+const loading=document.getElementById("loading");
+const loadingText=document.getElementById("loadingText");
 
-const openButton=
-document.getElementById("openButton");
+const backButton=document.getElementById("backButton");
+const forwardButton=document.getElementById("forwardButton");
 
-const viewer=
-document.getElementById("viewer");
+const zoomControls=document.getElementById("zoomControls");
+const zoomIn=document.getElementById("zoomIn");
+const zoomOut=document.getElementById("zoomOut");
+const zoomReset=document.getElementById("zoomReset");
 
-const viewerArea=
-document.getElementById("viewerArea");
+const navControls=document.getElementById("navControls");
+const pageBack=document.getElementById("pageBack");
+const pageForward=document.getElementById("pageForward");
 
-const status=
-document.getElementById("status");
-
-const title=
-document.getElementById("title");
-
-const loading=
-document.getElementById("loading");
-
-const loadingText=
-document.getElementById("loadingText");
-
-const backButton=
-document.getElementById("backButton");
-
-const forwardButton=
-document.getElementById("forwardButton");
-
-const zoomControls=
-document.getElementById("zoomControls");
-
-const zoomIn=
-document.getElementById("zoomIn");
-
-const zoomOut=
-document.getElementById("zoomOut");
-
-const zoomReset=
-document.getElementById("zoomReset");
-
-const scaleText=
-document.getElementById("scaleText");
-
-const navControls=
-document.getElementById("navControls");
-
-const pageBack=
-document.getElementById("pageBack");
-
-const pageForward=
-document.getElementById("pageForward");
+const scaleText=document.getElementById("scaleText");
 
 
 let mhtmlData=null;
@@ -310,37 +277,55 @@ let mhtmlData=null;
 let currentPage=0;
 
 let pageHistory=[];
-
 let historyIndex=-1;
 
 let scale=1;
 
 let offsetX=0;
-
 let offsetY=0;
-
-let startX=0;
-
-let startY=0;
-
-let startOffsetX=0;
-
-let startOffsetY=0;
-
-let pinchStartDistance=0;
-
-let pinchStartScale=1;
-
-let pinchCenterX=0;
-
-let pinchCenterY=0;
-
-let dragging=false;
-
-let lastTap=0;
 
 let iframeDocument=null;
 
+
+/*
+    タッチ状態
+*/
+
+let touches=new Map();
+
+let gesture="none";
+
+let singleStartX=0;
+let singleStartY=0;
+
+let singleLastX=0;
+let singleLastY=0;
+
+let singleMoved=false;
+
+let pinchStartDistance=0;
+let pinchStartScale=1;
+
+let pinchStartCenterX=0;
+let pinchStartCenterY=0;
+
+let pinchStartOffsetX=0;
+let pinchStartOffsetY=0;
+
+let pinchContentX=0;
+let pinchContentY=0;
+
+let lastTapTime=0;
+
+let lastTapX=0;
+let lastTapY=0;
+
+let doubleTapTimer=null;
+
+
+/*
+    ファイルを開く
+*/
 
 openButton.addEventListener(
 "click",
@@ -360,8 +345,7 @@ if(!file){
 return;
 }
 
-const name=
-file.name.toLowerCase();
+const name=file.name.toLowerCase();
 
 if(
 !name.endsWith(".mhtml")&&
@@ -403,15 +387,14 @@ throw new Error(
 
 }
 
-pageHistory=[];
-
-historyIndex=-1;
-
 currentPage=0;
+
+pageHistory=[];
+historyIndex=-1;
 
 await showPage(
 0,
-false
+true
 );
 
 status.style.display="none";
@@ -419,9 +402,7 @@ status.style.display="none";
 viewer.style.display="block";
 
 zoomControls.style.display="flex";
-
 navControls.style.display="flex";
-
 scaleText.style.display="block";
 
 updateNavigation();
@@ -437,9 +418,7 @@ loading.style.display="none";
 viewer.style.display="none";
 
 zoomControls.style.display="none";
-
 navControls.style.display="none";
-
 scaleText.style.display="none";
 
 status.style.display="block";
@@ -461,37 +440,34 @@ fileInput.value="";
 );
 
 
+/*
+    戻る・進む
+*/
+
 backButton.addEventListener(
 "click",
-()=>{
-goBack();
-}
+goBack
 );
-
 
 forwardButton.addEventListener(
 "click",
-()=>{
-goForward();
-}
+goForward
 );
-
 
 pageBack.addEventListener(
 "click",
-()=>{
-goBack();
-}
+goBack
 );
-
 
 pageForward.addEventListener(
 "click",
-()=>{
-goForward();
-}
+goForward
 );
 
+
+/*
+    ズームボタン
+*/
 
 zoomIn.addEventListener(
 "click",
@@ -519,19 +495,19 @@ viewerArea.clientHeight/2
 
 zoomReset.addEventListener(
 "click",
-()=>{
-resetView();
-}
+resetView
 );
 
 
+/*
+    MHTML解析
+*/
+
 function parseMHTML(buffer){
 
-const bytes=
-new Uint8Array(buffer);
+const bytes=new Uint8Array(buffer);
 
-const headerEnd=
-findHeaderEnd(bytes);
+const headerEnd=findHeaderEnd(bytes);
 
 if(headerEnd<0){
 
@@ -582,20 +558,15 @@ boundary
 );
 
 const resources=[];
-
 const pages=[];
 
-for(
-const part of parts
-){
+for(const part of parts){
 
 if(
 !part||
 part.length===0
 ){
-
 continue;
-
 }
 
 const pHeaderEnd=
@@ -622,14 +593,10 @@ pHeaderEnd
 );
 
 const encodedBody=
-part.slice(
-pBodyStart
-);
+part.slice(pBodyStart);
 
 const headers=
-parseHeaders(
-pHeader
-);
+parseHeaders(pHeader);
 
 const contentType=
 getHeader(
@@ -668,11 +635,8 @@ transfer
 );
 
 const charset=
-getCharset(
-contentType
-)||
+getCharset(contentType)||
 "utf-8";
-
 
 if(
 contentType
@@ -689,26 +653,19 @@ charset
 pages.push({
 
 html:html,
-
 location:location,
-
 contentId:contentId,
-
 index:pages.length
 
 });
 
 }
 
-
 resources.push({
 
 contentType:contentType,
-
 location:location,
-
 contentId:contentId,
-
 data:data
 
 });
@@ -716,25 +673,31 @@ data:data
 }
 
 return{
-
 pages:pages,
-
 resources:resources
-
 };
 
 }
 
 
-async function showPage(
+/*
+    ページ表示
+*/
+
+function showPage(
 index,
 addHistory
 ){
+
+return new Promise(
+resolve=>{
 
 if(
 !mhtmlData||
 !mhtmlData.pages[index]
 ){
+
+resolve();
 
 return;
 
@@ -762,20 +725,7 @@ viewer.onload=()=>{
 iframeDocument=
 viewer.contentDocument;
 
-installIframeTouchControls();
-
-installIframeNavigation();
-
-setTimeout(
-()=>{
-loading.style.display="none";
-},
-100
-);
-
-};
-
-viewer.srcdoc=html;
+setupIframe();
 
 resetView();
 
@@ -796,14 +746,46 @@ pageHistory.length-1;
 
 updateNavigation();
 
+setTimeout(
+()=>{
+loading.style.display="none";
+resolve();
+},
+80
+);
+
+};
+
+viewer.srcdoc=html;
+
+}
+);
+
 }
 
 
-function installIframeNavigation(){
+/*
+    iframe初期化
+*/
+
+function setupIframe(){
 
 if(!iframeDocument){
 return;
 }
+
+installLinks();
+
+installTouchControls();
+
+}
+
+
+/*
+    MHTML内部リンク
+*/
+
+function installLinks(){
 
 const links=
 iframeDocument.querySelectorAll(
@@ -853,18 +835,21 @@ true
 }
 
 
-function installIframeTouchControls(){
+/*
+    タッチイベント
+*/
+
+function installTouchControls(){
 
 if(!iframeDocument){
 return;
 }
 
-const doc=
-iframeDocument;
+const doc=iframeDocument;
 
 doc.addEventListener(
 "touchstart",
-handleTouchStart,
+onTouchStart,
 {
 passive:false
 }
@@ -872,7 +857,7 @@ passive:false
 
 doc.addEventListener(
 "touchmove",
-handleTouchMove,
+onTouchMove,
 {
 passive:false
 }
@@ -880,7 +865,7 @@ passive:false
 
 doc.addEventListener(
 "touchend",
-handleTouchEnd,
+onTouchEnd,
 {
 passive:false
 }
@@ -888,7 +873,7 @@ passive:false
 
 doc.addEventListener(
 "touchcancel",
-handleTouchEnd,
+onTouchCancel,
 {
 passive:false
 }
@@ -897,110 +882,221 @@ passive:false
 }
 
 
-function handleTouchStart(event){
+/*
+    TouchStart
+*/
 
-if(
-event.touches.length===2
+function onTouchStart(event){
+
+for(
+const touch of event.changedTouches
 ){
+
+touches.set(
+touch.identifier,
+{
+x:touch.clientX,
+y:touch.clientY
+}
+);
+
+}
+
+const count=
+touches.size;
+
+
+/*
+    2本指開始
+*/
+
+if(count===2){
 
 event.preventDefault();
 
-const a=
-event.touches[0];
+gesture="pinch";
 
-const b=
-event.touches[1];
+const points=
+Array.from(touches.values());
+
+const a=points[0];
+const b=points[1];
 
 pinchStartDistance=
 distance(
-a.clientX,
-a.clientY,
-b.clientX,
-b.clientY
+a.x,
+a.y,
+b.x,
+b.y
 );
 
-pinchStartScale=
-scale;
+pinchStartScale=scale;
 
-pinchCenterX=
-(a.clientX+b.clientX)/2;
+pinchStartCenterX=
+(a.x+b.x)/2;
 
-pinchCenterY=
-(a.clientY+b.clientY)/2;
+pinchStartCenterY=
+(a.y+b.y)/2;
 
-dragging=false;
+pinchStartOffsetX=offsetX;
+pinchStartOffsetY=offsetY;
+
+
+/*
+    指を置いた場所を
+    コンテンツ座標に変換
+*/
+
+pinchContentX=
+(
+pinchStartCenterX-
+pinchStartOffsetX
+)/
+pinchStartScale;
+
+pinchContentY=
+(
+pinchStartCenterY-
+pinchStartOffsetY
+)/
+pinchStartScale;
 
 return;
 
 }
 
-if(
-event.touches.length===1
-){
+
+/*
+    1本指
+*/
+
+if(count===1){
 
 const touch=
-event.touches[0];
+event.changedTouches[0];
 
-startX=
+singleStartX=
 touch.clientX;
 
-startY=
+singleStartY=
 touch.clientY;
 
-startOffsetX=
-offsetX;
+singleLastX=
+touch.clientX;
 
-startOffsetY=
-offsetY;
+singleLastY=
+touch.clientY;
 
-dragging=false;
+singleMoved=false;
 
-const now=
-Date.now();
+if(scale>1.02){
 
-if(
-now-lastTap<300
-){
-
-zoomAt(
-scale<1.8?2:0.5,
-touch.clientX,
-touch.clientY
-);
-
-lastTap=0;
+gesture="drag";
 
 }else{
 
-lastTap=now;
-
-}
-
-}
+gesture="native";
 
 }
 
 
-function handleTouchMove(event){
+/*
+    ダブルタップ判定
+*/
+
+const now=Date.now();
+
+const dx=
+touch.clientX-lastTapX;
+
+const dy=
+touch.clientY-lastTapY;
 
 if(
-event.touches.length===2
+now-lastTapTime<320&&
+Math.sqrt(dx*dx+dy*dy)<35
 ){
 
 event.preventDefault();
 
-const a=
-event.touches[0];
+clearTimeout(
+doubleTapTimer
+);
 
-const b=
-event.touches[1];
+const targetScale=
+scale<1.8?
+2:
+1;
+
+zoomAt(
+targetScale/scale,
+touch.clientX,
+touch.clientY
+);
+
+lastTapTime=0;
+
+}else{
+
+lastTapTime=now;
+lastTapX=touch.clientX;
+lastTapY=touch.clientY;
+
+}
+
+}
+
+}
+
+
+/*
+    TouchMove
+*/
+
+function onTouchMove(event){
+
+/*
+    2本指
+*/
+
+if(
+touches.size===2
+){
+
+event.preventDefault();
+
+for(
+const touch of event.changedTouches
+){
+
+if(touches.has(touch.identifier)){
+
+touches.set(
+touch.identifier,
+{
+x:touch.clientX,
+y:touch.clientY
+}
+);
+
+}
+
+}
+
+const points=
+Array.from(
+touches.values()
+);
+
+const a=points[0];
+const b=points[1];
 
 const currentDistance=
 distance(
-a.clientX,
-a.clientY,
-b.clientX,
-b.clientY
+a.x,
+a.y,
+b.x,
+b.y
 );
 
 if(
@@ -1015,50 +1111,85 @@ pinchStartDistance;
 
 const newScale=
 clamp(
-pinchStartScale*
-factor,
+pinchStartScale*factor,
 0.25,
 6
 );
 
-setScaleAroundPoint(
-newScale,
-pinchCenterX,
-pinchCenterY
-);
+const centerX=
+(a.x+b.x)/2;
+
+const centerY=
+(a.y+b.y)/2;
+
+
+/*
+    2本指の移動量
+*/
+
+const centerDX=
+centerX-
+pinchStartCenterX;
+
+const centerDY=
+centerY-
+pinchStartCenterY;
+
+
+/*
+    ズーム中心を維持しながら
+    2本指移動も反映
+*/
+
+scale=newScale;
+
+offsetX=
+pinchStartCenterX-
+pinchContentX*scale+
+centerDX;
+
+offsetY=
+pinchStartCenterY-
+pinchContentY*scale+
+centerDY;
+
+applyTransform();
 
 return;
 
 }
 
 
-if(
-event.touches.length===1
-){
-
-const touch=
-event.touches[0];
-
-const dx=
-touch.clientX-startX;
-
-const dy=
-touch.clientY-startY;
+/*
+    1本指ドラッグ
+*/
 
 if(
-Math.abs(dx)>4||
-Math.abs(dy)>4
+touches.size===1&&
+gesture==="drag"
 ){
-
-dragging=true;
 
 event.preventDefault();
 
-offsetX=
-startOffsetX+dx;
+const touch=
+event.changedTouches[0];
 
-offsetY=
-startOffsetY+dy;
+const dx=
+touch.clientX-singleLastX;
+
+const dy=
+touch.clientY-singleLastY;
+
+offsetX+=dx;
+offsetY+=dy;
+
+singleLastX=
+touch.clientX;
+
+singleLastY=
+touch.clientY;
+
+singleMoved=true;
 
 applyTransform();
 
@@ -1066,27 +1197,101 @@ applyTransform();
 
 }
 
+
+/*
+    TouchEnd
+*/
+
+function onTouchEnd(event){
+
+for(
+const touch of event.changedTouches
+){
+
+touches.delete(
+touch.identifier
+);
+
 }
 
 
-function handleTouchEnd(event){
+/*
+    2本指→1本指に変わった瞬間
+    はドラッグへ移行しない
+*/
 
 if(
-event.touches.length===0
+touches.size===1
 ){
+
+gesture="none";
+
+const remaining=
+Array.from(
+touches.values()
+)[0];
+
+singleStartX=
+remaining.x;
+
+singleStartY=
+remaining.y;
+
+singleLastX=
+remaining.x;
+
+singleLastY=
+remaining.y;
+
+return;
+
+}
+
+
+if(
+touches.size===0
+){
+
+gesture="none";
 
 pinchStartDistance=0;
 
-if(dragging){
+}
 
-event.preventDefault();
+}
+
+
+/*
+    TouchCancel
+*/
+
+function onTouchCancel(event){
+
+for(
+const touch of event.changedTouches
+){
+
+touches.delete(
+touch.identifier
+);
+
+}
+
+if(
+touches.size===0
+){
+
+gesture="none";
+pinchStartDistance=0;
 
 }
 
 }
 
-}
 
+/*
+    距離
+*/
 
 function distance(
 x1,
@@ -1096,7 +1301,6 @@ y2
 ){
 
 const dx=x2-x1;
-
 const dy=y2-y1;
 
 return Math.sqrt(
@@ -1105,6 +1309,10 @@ dx*dx+dy*dy
 
 }
 
+
+/*
+    ズーム
+*/
 
 function zoomAt(
 factor,
@@ -1134,30 +1342,23 @@ x,
 y
 ){
 
-const oldScale=
-scale;
-
-if(
-oldScale===newScale
-){
-return;
-}
-
 const contentX=
 (x-offsetX)/
-oldScale;
+scale;
 
 const contentY=
 (y-offsetY)/
-oldScale;
+scale;
 
 scale=newScale;
 
 offsetX=
-x-contentX*scale;
+x-
+contentX*scale;
 
 offsetY=
-y-contentY*scale;
+y-
+contentY*scale;
 
 applyTransform();
 
@@ -1169,7 +1370,6 @@ function resetView(){
 scale=1;
 
 offsetX=0;
-
 offsetY=0;
 
 applyTransform();
@@ -1189,7 +1389,9 @@ scale+
 ")";
 
 scaleText.textContent=
-Math.round(scale*100)+
+Math.round(
+scale*100
+)+
 "%";
 
 }
@@ -1211,6 +1413,10 @@ value
 
 }
 
+
+/*
+    履歴
+*/
 
 function goBack(){
 
@@ -1280,6 +1486,10 @@ pageHistory.length-1;
 }
 
 
+/*
+    ページ検索
+*/
+
 function findPageByURL(url){
 
 if(!url){
@@ -1287,9 +1497,7 @@ return -1;
 }
 
 const normalized=
-normalizeURL(
-url
-);
+normalizeURL(url);
 
 for(
 let i=0;
@@ -1313,6 +1521,11 @@ return i;
 
 }
 
+try{
+
+const target=
+new URL(url);
+
 for(
 let i=0;
 i<mhtmlData.pages.length;
@@ -1324,19 +1537,14 @@ mhtmlData.pages[i];
 
 try{
 
-const a=
+const pageURL=
 new URL(
 page.location
 );
 
-const b=
-new URL(
-url
-);
-
 if(
-a.href===
-b.href
+pageURL.href===
+target.href
 ){
 
 return i;
@@ -1347,10 +1555,16 @@ return i;
 
 }
 
+}catch{}
+
 return -1;
 
 }
 
+
+/*
+    URL
+*/
 
 function resolveURL(
 url,
@@ -1361,7 +1575,8 @@ try{
 
 return new URL(
 url,
-base||location.href
+base||
+location.href
 ).href;
 
 }catch{
@@ -1373,14 +1588,17 @@ return url;
 }
 
 
+/*
+    リソース復元
+*/
+
 function restoreResources(
 html,
 resources,
 pageLocation
 ){
 
-const map=
-new Map();
+const map=new Map();
 
 for(
 const resource of resources
@@ -1488,7 +1706,6 @@ if(direct){
 return direct;
 }
 
-
 try{
 
 const absolute=
@@ -1508,7 +1725,6 @@ return found;
 }
 
 }catch{}
-
 
 return original;
 
@@ -1563,9 +1779,15 @@ quote+
 );
 
 
+html=
+html.replace(
+/<base[^>]*>/gi,
+""
+);
+
+
 if(
-!/<meta[^>]+charset=/i
-.test(html)
+!/<meta[^>]+charset=/i.test(html)
 ){
 
 html=
@@ -1574,25 +1796,14 @@ html;
 
 }
 
-
-html=
-html.replace(
-/<base[^>]*>/gi,
-""
-);
-
-
-html=
-"<base href=\""+escapeAttribute(
-pageLocation||""
-)+"\">"+
-html;
-
-
 return html;
 
 }
 
+
+/*
+    リソースマップ
+*/
 
 function addResourceMapping(
 map,
@@ -1698,6 +1909,10 @@ return String(url)
 }
 
 
+/*
+    MIME解析
+*/
+
 function findHeaderEnd(bytes){
 
 for(
@@ -1774,7 +1989,6 @@ boundary
 );
 
 const parts=[];
-
 const positions=[];
 
 let start=0;
@@ -1905,6 +2119,10 @@ return -1;
 }
 
 
+/*
+    ヘッダー
+*/
+
 function parseHeaders(text){
 
 text=
@@ -1956,8 +2174,7 @@ value;
 
 }else{
 
-headers[name]=
-value;
+headers[name]=value;
 
 }
 
@@ -2013,6 +2230,10 @@ return id
 }
 
 
+/*
+    エンコード
+*/
+
 function decodeTransferEncoding(
 bytes,
 encoding
@@ -2022,9 +2243,7 @@ if(
 encoding.includes("base64")
 ){
 
-return decodeBase64Bytes(
-bytes
-);
+return decodeBase64Bytes(bytes);
 
 }
 
@@ -2035,9 +2254,7 @@ encoding.includes(
 encoding.includes("quopri")
 ){
 
-return decodeQuotedPrintable(
-bytes
-);
+return decodeQuotedPrintable(bytes);
 
 }
 
@@ -2058,8 +2275,7 @@ i<bytes.length;
 i++
 ){
 
-const c=
-bytes[i];
+const c=bytes[i];
 
 if(
 c===9||
@@ -2118,8 +2334,7 @@ const output=[];
 const text=
 new TextDecoder(
 "latin1"
-)
-.decode(bytes);
+).decode(bytes);
 
 for(
 let i=0;
@@ -2135,7 +2350,6 @@ text[i+2]==="\n"
 ){
 
 i+=2;
-
 continue;
 
 }
@@ -2145,7 +2359,6 @@ text[i+1]==="\n"
 ){
 
 i+=1;
-
 continue;
 
 }
@@ -2162,10 +2375,7 @@ if(
 ){
 
 output.push(
-parseInt(
-hex,
-16
-)
+parseInt(hex,16)
 );
 
 i+=2;
@@ -2227,10 +2437,7 @@ try{
 
 return new TextDecoder(
 charset
-)
-.decode(
-bytes
-);
+).decode(bytes);
 
 }catch{
 
@@ -2238,10 +2445,7 @@ try{
 
 return new TextDecoder(
 "utf-8"
-)
-.decode(
-bytes
-);
+).decode(bytes);
 
 }catch{
 
@@ -2255,6 +2459,10 @@ return String.fromCharCode(
 
 }
 
+
+/*
+    エスケープ
+*/
 
 function escapeHTML(
 text
@@ -2280,31 +2488,6 @@ return String(text)
 .replace(
 /'/g,
 "&#039;"
-);
-
-}
-
-
-function escapeAttribute(
-text
-){
-
-return String(text)
-.replace(
-/&/g,
-"&amp;"
-)
-.replace(
-/"/g,
-"&quot;"
-)
-.replace(
-/</g,
-"&lt;"
-)
-.replace(
-/>/g,
-"&gt;"
 );
 
 }
