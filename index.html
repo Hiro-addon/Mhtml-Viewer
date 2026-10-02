@@ -29,72 +29,97 @@ height:62px;
 flex-shrink:0;
 display:flex;
 align-items:center;
-padding:10px 14px;
-gap:10px;
+gap:7px;
+padding:9px 10px;
 background:#15151a;
 border-bottom:1px solid #29292f;
+z-index:20;
 }
 .title{
-font-size:18px;
+font-size:17px;
 font-weight:700;
 flex:1;
+min-width:0;
 white-space:nowrap;
 overflow:hidden;
 text-overflow:ellipsis;
 }
-#openButton{
+button{
 border:0;
-border-radius:12px;
-padding:11px 16px;
+background:#29292f;
+color:#fff;
+border-radius:10px;
+height:42px;
+min-width:42px;
+font-size:16px;
+font-weight:600;
+}
+button:disabled{
+opacity:.35;
+}
+#openButton{
 background:#fff;
 color:#111;
+padding:0 14px;
 font-size:14px;
-font-weight:700;
 }
 #fileInput{
 display:none;
+}
+#viewerArea{
+position:relative;
+width:100%;
+height:calc(100% - 62px);
+overflow:hidden;
+background:#fff;
+touch-action:none;
+}
+#viewer{
+position:absolute;
+left:0;
+top:0;
+width:100%;
+height:100%;
+border:0;
+background:#fff;
+display:none;
+transform-origin:0 0;
 }
 #status{
 position:absolute;
 left:50%;
 top:50%;
 transform:translate(-50%,-50%);
-text-align:center;
 width:90%;
 max-width:500px;
+text-align:center;
 color:#aaa;
+z-index:2;
 }
 #status strong{
 display:block;
+font-size:21px;
 color:#fff;
-font-size:20px;
 margin-bottom:10px;
 }
 #status span{
 font-size:14px;
 line-height:1.7;
 }
-#viewer{
-width:100%;
-height:calc(100% - 62px);
-border:0;
-background:#fff;
-display:none;
-}
 #loading{
 display:none;
 position:fixed;
 inset:0;
-background:rgba(0,0,0,.7);
-z-index:10;
+z-index:100;
+background:rgba(0,0,0,.72);
 align-items:center;
 justify-content:center;
 flex-direction:column;
 gap:14px;
 }
 .loader{
-width:38px;
-height:38px;
+width:40px;
+height:40px;
 border:4px solid #555;
 border-top-color:#fff;
 border-radius:50%;
@@ -104,6 +129,53 @@ animation:spin .8s linear infinite;
 to{
 transform:rotate(360deg);
 }
+}
+#zoomControls{
+position:absolute;
+right:12px;
+bottom:12px;
+display:none;
+flex-direction:column;
+gap:7px;
+z-index:30;
+}
+#zoomControls button{
+width:46px;
+height:46px;
+min-width:46px;
+font-size:21px;
+background:rgba(25,25,30,.92);
+backdrop-filter:blur(10px);
+-webkit-backdrop-filter:blur(10px);
+}
+#zoomReset{
+font-size:12px!important;
+}
+#navControls{
+position:absolute;
+left:12px;
+bottom:12px;
+display:none;
+gap:7px;
+z-index:30;
+}
+#navControls button{
+background:rgba(25,25,30,.92);
+backdrop-filter:blur(10px);
+-webkit-backdrop-filter:blur(10px);
+}
+#scaleText{
+position:absolute;
+left:50%;
+bottom:13px;
+transform:translateX(-50%);
+background:rgba(25,25,30,.85);
+padding:8px 11px;
+border-radius:9px;
+font-size:12px;
+z-index:30;
+display:none;
+pointer-events:none;
 }
 .error{
 color:#ff6b6b!important;
@@ -115,89 +187,261 @@ color:#ff6b6b!important;
 <div id="app">
 
 <header>
-<div class="title" id="title">MHTML Viewer</div>
-<button id="openButton">MHTMLを開く</button>
+
+<div class="title" id="title">
+MHTML Viewer
+</div>
+
+<button id="backButton" disabled>
+‹
+</button>
+
+<button id="forwardButton" disabled>
+›
+</button>
+
+<button id="openButton">
+MHTMLを開く
+</button>
+
 <input id="fileInput" type="file">
+
 </header>
+
+<div id="viewerArea">
 
 <div id="status">
 <strong>MHTML Viewer</strong>
-<span>MHTML / MHTファイルを選択してください</span>
+<span>
+MHTML / MHTファイルを選択してください
+</span>
 </div>
 
 <iframe id="viewer"></iframe>
 
+<div id="zoomControls">
+<button id="zoomIn">＋</button>
+<button id="zoomReset">100%</button>
+<button id="zoomOut">−</button>
+</div>
+
+<div id="navControls">
+<button id="pageBack">←</button>
+<button id="pageForward">→</button>
+</div>
+
+<div id="scaleText">
+100%
+</div>
+
+</div>
+
 </div>
 
 <div id="loading">
+
 <div class="loader"></div>
-<div id="loadingText">読み込んでいます…</div>
+
+<div id="loadingText">
+読み込んでいます…
+</div>
+
 </div>
 
 <script>
-const fileInput=document.getElementById("fileInput");
-const openButton=document.getElementById("openButton");
-const viewer=document.getElementById("viewer");
-const status=document.getElementById("status");
-const title=document.getElementById("title");
-const loading=document.getElementById("loading");
-const loadingText=document.getElementById("loadingText");
 
-openButton.addEventListener("click",()=>{
+const fileInput=
+document.getElementById("fileInput");
+
+const openButton=
+document.getElementById("openButton");
+
+const viewer=
+document.getElementById("viewer");
+
+const viewerArea=
+document.getElementById("viewerArea");
+
+const status=
+document.getElementById("status");
+
+const title=
+document.getElementById("title");
+
+const loading=
+document.getElementById("loading");
+
+const loadingText=
+document.getElementById("loadingText");
+
+const backButton=
+document.getElementById("backButton");
+
+const forwardButton=
+document.getElementById("forwardButton");
+
+const zoomControls=
+document.getElementById("zoomControls");
+
+const zoomIn=
+document.getElementById("zoomIn");
+
+const zoomOut=
+document.getElementById("zoomOut");
+
+const zoomReset=
+document.getElementById("zoomReset");
+
+const scaleText=
+document.getElementById("scaleText");
+
+const navControls=
+document.getElementById("navControls");
+
+const pageBack=
+document.getElementById("pageBack");
+
+const pageForward=
+document.getElementById("pageForward");
+
+
+let mhtmlData=null;
+
+let currentPage=0;
+
+let pageHistory=[];
+
+let historyIndex=-1;
+
+let scale=1;
+
+let offsetX=0;
+
+let offsetY=0;
+
+let startX=0;
+
+let startY=0;
+
+let startOffsetX=0;
+
+let startOffsetY=0;
+
+let pinchStartDistance=0;
+
+let pinchStartScale=1;
+
+let pinchCenterX=0;
+
+let pinchCenterY=0;
+
+let dragging=false;
+
+let lastTap=0;
+
+let iframeDocument=null;
+
+
+openButton.addEventListener(
+"click",
+()=>{
 fileInput.click();
-});
+}
+);
 
-fileInput.addEventListener("change",async()=>{
+
+fileInput.addEventListener(
+"change",
+async()=>{
+
 const file=fileInput.files[0];
 
-if(!file)return;
+if(!file){
+return;
+}
 
-const name=file.name.toLowerCase();
+const name=
+file.name.toLowerCase();
 
 if(
 !name.endsWith(".mhtml")&&
 !name.endsWith(".mht")
 ){
-alert("MHTML / MHTファイルを選択してください");
+
+alert(
+"MHTML / MHTファイルを選択してください"
+);
+
 fileInput.value="";
+
 return;
+
 }
 
 try{
 
 loading.style.display="flex";
-loadingText.textContent="MHTMLを解析しています…";
+
+loadingText.textContent=
+"MHTMLを解析しています…";
+
 title.textContent=file.name;
 
-const buffer=await file.arrayBuffer();
+const buffer=
+await file.arrayBuffer();
 
-const result=parseMHTML(buffer);
+mhtmlData=
+parseMHTML(buffer);
 
-if(!result.html){
-throw new Error("HTML部分が見つかりませんでした");
-}
+if(
+!mhtmlData.pages.length
+){
 
-loadingText.textContent="ページを復元しています…";
-
-const html=restoreResources(
-result.html,
-result.resources
+throw new Error(
+"HTMLページが見つかりませんでした"
 );
 
-viewer.srcdoc=html;
-viewer.style.display="block";
+}
+
+pageHistory=[];
+
+historyIndex=-1;
+
+currentPage=0;
+
+await showPage(
+0,
+false
+);
+
 status.style.display="none";
 
-setTimeout(()=>{
+viewer.style.display="block";
+
+zoomControls.style.display="flex";
+
+navControls.style.display="flex";
+
+scaleText.style.display="block";
+
+updateNavigation();
+
 loading.style.display="none";
-},200);
 
 }catch(error){
 
 console.error(error);
 
 loading.style.display="none";
+
 viewer.style.display="none";
+
+zoomControls.style.display="none";
+
+navControls.style.display="none";
+
+scaleText.style.display="none";
+
 status.style.display="block";
 
 status.innerHTML=
@@ -212,27 +456,97 @@ error.message||
 }
 
 fileInput.value="";
-});
+
+}
+);
+
+
+backButton.addEventListener(
+"click",
+()=>{
+goBack();
+}
+);
+
+
+forwardButton.addEventListener(
+"click",
+()=>{
+goForward();
+}
+);
+
+
+pageBack.addEventListener(
+"click",
+()=>{
+goBack();
+}
+);
+
+
+pageForward.addEventListener(
+"click",
+()=>{
+goForward();
+}
+);
+
+
+zoomIn.addEventListener(
+"click",
+()=>{
+zoomAt(
+1.25,
+viewerArea.clientWidth/2,
+viewerArea.clientHeight/2
+);
+}
+);
+
+
+zoomOut.addEventListener(
+"click",
+()=>{
+zoomAt(
+0.8,
+viewerArea.clientWidth/2,
+viewerArea.clientHeight/2
+);
+}
+);
+
+
+zoomReset.addEventListener(
+"click",
+()=>{
+resetView();
+}
+);
+
 
 function parseMHTML(buffer){
 
-const bytes=new Uint8Array(buffer);
+const bytes=
+new Uint8Array(buffer);
 
-const headerEnd=findHeaderEnd(bytes);
+const headerEnd=
+findHeaderEnd(bytes);
 
 if(headerEnd<0){
+
 throw new Error(
 "MHTMLのヘッダーを確認できませんでした"
 );
+
 }
 
-const headerBytes=bytes.slice(
+const header=
+decodeBytes(
+bytes.slice(
 0,
 headerEnd
-);
-
-const header=decodeBytes(
-headerBytes,
+),
 "utf-8"
 );
 
@@ -242,9 +556,11 @@ header.match(
 );
 
 if(!boundaryMatch){
+
 throw new Error(
 "MHTMLのboundaryが見つかりませんでした"
 );
+
 }
 
 const boundary=
@@ -267,12 +583,19 @@ boundary
 
 const resources=[];
 
-let htmlPart=null;
+const pages=[];
 
-for(const part of parts){
+for(
+const part of parts
+){
 
-if(!part||part.length===0){
+if(
+!part||
+part.length===0
+){
+
 continue;
+
 }
 
 const pHeaderEnd=
@@ -299,10 +622,14 @@ pHeaderEnd
 );
 
 const encodedBody=
-part.slice(pBodyStart);
+part.slice(
+pBodyStart
+);
 
 const headers=
-parseHeaders(pHeader);
+parseHeaders(
+pHeader
+);
 
 const contentType=
 getHeader(
@@ -341,8 +668,11 @@ transfer
 );
 
 const charset=
-getCharset(contentType)||
+getCharset(
+contentType
+)||
 "utf-8";
+
 
 if(
 contentType
@@ -350,42 +680,1023 @@ contentType
 .includes("text/html")
 ){
 
-const text=
+const html=
 decodeBytes(
 data,
 charset
 );
 
-htmlPart={
-html:text,
+pages.push({
+
+html:html,
+
 location:location,
-contentId:contentId
-};
+
+contentId:contentId,
+
+index:pages.length
+
+});
 
 }
 
+
 resources.push({
+
 contentType:contentType,
+
 location:location,
+
 contentId:contentId,
+
 data:data
+
 });
 
 }
 
 return{
-html:htmlPart?
-htmlPart.html:
-null,
 
-htmlLocation:htmlPart?
-htmlPart.location:
-"",
+pages:pages,
 
 resources:resources
+
 };
 
 }
+
+
+async function showPage(
+index,
+addHistory
+){
+
+if(
+!mhtmlData||
+!mhtmlData.pages[index]
+){
+
+return;
+
+}
+
+currentPage=index;
+
+const page=
+mhtmlData.pages[index];
+
+loading.style.display="flex";
+
+loadingText.textContent=
+"ページを復元しています…";
+
+const html=
+restoreResources(
+page.html,
+mhtmlData.resources,
+page.location
+);
+
+viewer.onload=()=>{
+
+iframeDocument=
+viewer.contentDocument;
+
+installIframeTouchControls();
+
+installIframeNavigation();
+
+setTimeout(
+()=>{
+loading.style.display="none";
+},
+100
+);
+
+};
+
+viewer.srcdoc=html;
+
+resetView();
+
+if(addHistory){
+
+pageHistory=
+pageHistory.slice(
+0,
+historyIndex+1
+);
+
+pageHistory.push(index);
+
+historyIndex=
+pageHistory.length-1;
+
+}
+
+updateNavigation();
+
+}
+
+
+function installIframeNavigation(){
+
+if(!iframeDocument){
+return;
+}
+
+const links=
+iframeDocument.querySelectorAll(
+"a[href]"
+);
+
+links.forEach(
+link=>{
+
+link.addEventListener(
+"click",
+event=>{
+
+const href=
+link.getAttribute("href");
+
+if(!href){
+return;
+}
+
+const target=
+resolveURL(
+href,
+mhtmlData.pages[currentPage].location
+);
+
+const pageIndex=
+findPageByURL(target);
+
+if(pageIndex>=0){
+
+event.preventDefault();
+
+showPage(
+pageIndex,
+true
+);
+
+}
+
+}
+);
+
+}
+);
+
+}
+
+
+function installIframeTouchControls(){
+
+if(!iframeDocument){
+return;
+}
+
+const doc=
+iframeDocument;
+
+doc.addEventListener(
+"touchstart",
+handleTouchStart,
+{
+passive:false
+}
+);
+
+doc.addEventListener(
+"touchmove",
+handleTouchMove,
+{
+passive:false
+}
+);
+
+doc.addEventListener(
+"touchend",
+handleTouchEnd,
+{
+passive:false
+}
+);
+
+doc.addEventListener(
+"touchcancel",
+handleTouchEnd,
+{
+passive:false
+}
+);
+
+}
+
+
+function handleTouchStart(event){
+
+if(
+event.touches.length===2
+){
+
+event.preventDefault();
+
+const a=
+event.touches[0];
+
+const b=
+event.touches[1];
+
+pinchStartDistance=
+distance(
+a.clientX,
+a.clientY,
+b.clientX,
+b.clientY
+);
+
+pinchStartScale=
+scale;
+
+pinchCenterX=
+(a.clientX+b.clientX)/2;
+
+pinchCenterY=
+(a.clientY+b.clientY)/2;
+
+dragging=false;
+
+return;
+
+}
+
+if(
+event.touches.length===1
+){
+
+const touch=
+event.touches[0];
+
+startX=
+touch.clientX;
+
+startY=
+touch.clientY;
+
+startOffsetX=
+offsetX;
+
+startOffsetY=
+offsetY;
+
+dragging=false;
+
+const now=
+Date.now();
+
+if(
+now-lastTap<300
+){
+
+zoomAt(
+scale<1.8?2:0.5,
+touch.clientX,
+touch.clientY
+);
+
+lastTap=0;
+
+}else{
+
+lastTap=now;
+
+}
+
+}
+
+}
+
+
+function handleTouchMove(event){
+
+if(
+event.touches.length===2
+){
+
+event.preventDefault();
+
+const a=
+event.touches[0];
+
+const b=
+event.touches[1];
+
+const currentDistance=
+distance(
+a.clientX,
+a.clientY,
+b.clientX,
+b.clientY
+);
+
+if(
+pinchStartDistance<=0
+){
+return;
+}
+
+const factor=
+currentDistance/
+pinchStartDistance;
+
+const newScale=
+clamp(
+pinchStartScale*
+factor,
+0.25,
+6
+);
+
+setScaleAroundPoint(
+newScale,
+pinchCenterX,
+pinchCenterY
+);
+
+return;
+
+}
+
+
+if(
+event.touches.length===1
+){
+
+const touch=
+event.touches[0];
+
+const dx=
+touch.clientX-startX;
+
+const dy=
+touch.clientY-startY;
+
+if(
+Math.abs(dx)>4||
+Math.abs(dy)>4
+){
+
+dragging=true;
+
+event.preventDefault();
+
+offsetX=
+startOffsetX+dx;
+
+offsetY=
+startOffsetY+dy;
+
+applyTransform();
+
+}
+
+}
+
+}
+
+
+function handleTouchEnd(event){
+
+if(
+event.touches.length===0
+){
+
+pinchStartDistance=0;
+
+if(dragging){
+
+event.preventDefault();
+
+}
+
+}
+
+}
+
+
+function distance(
+x1,
+y1,
+x2,
+y2
+){
+
+const dx=x2-x1;
+
+const dy=y2-y1;
+
+return Math.sqrt(
+dx*dx+dy*dy
+);
+
+}
+
+
+function zoomAt(
+factor,
+x,
+y
+){
+
+const newScale=
+clamp(
+scale*factor,
+0.25,
+6
+);
+
+setScaleAroundPoint(
+newScale,
+x,
+y
+);
+
+}
+
+
+function setScaleAroundPoint(
+newScale,
+x,
+y
+){
+
+const oldScale=
+scale;
+
+if(
+oldScale===newScale
+){
+return;
+}
+
+const contentX=
+(x-offsetX)/
+oldScale;
+
+const contentY=
+(y-offsetY)/
+oldScale;
+
+scale=newScale;
+
+offsetX=
+x-contentX*scale;
+
+offsetY=
+y-contentY*scale;
+
+applyTransform();
+
+}
+
+
+function resetView(){
+
+scale=1;
+
+offsetX=0;
+
+offsetY=0;
+
+applyTransform();
+
+}
+
+
+function applyTransform(){
+
+viewer.style.transform=
+"translate3d("+
+offsetX+
+"px,"+
+offsetY+
+"px,0) scale("+
+scale+
+")";
+
+scaleText.textContent=
+Math.round(scale*100)+
+"%";
+
+}
+
+
+function clamp(
+value,
+min,
+max
+){
+
+return Math.max(
+min,
+Math.min(
+max,
+value
+)
+);
+
+}
+
+
+function goBack(){
+
+if(
+historyIndex<=0
+){
+return;
+}
+
+historyIndex--;
+
+const index=
+pageHistory[historyIndex];
+
+showPage(
+index,
+false
+);
+
+updateNavigation();
+
+}
+
+
+function goForward(){
+
+if(
+historyIndex>=
+pageHistory.length-1
+){
+
+return;
+
+}
+
+historyIndex++;
+
+const index=
+pageHistory[historyIndex];
+
+showPage(
+index,
+false
+);
+
+updateNavigation();
+
+}
+
+
+function updateNavigation(){
+
+backButton.disabled=
+historyIndex<=0;
+
+forwardButton.disabled=
+historyIndex>=
+pageHistory.length-1;
+
+pageBack.disabled=
+historyIndex<=0;
+
+pageForward.disabled=
+historyIndex>=
+pageHistory.length-1;
+
+}
+
+
+function findPageByURL(url){
+
+if(!url){
+return -1;
+}
+
+const normalized=
+normalizeURL(
+url
+);
+
+for(
+let i=0;
+i<mhtmlData.pages.length;
+i++
+){
+
+const page=
+mhtmlData.pages[i];
+
+if(
+normalizeURL(
+page.location
+)===
+normalized
+){
+
+return i;
+
+}
+
+}
+
+for(
+let i=0;
+i<mhtmlData.pages.length;
+i++
+){
+
+const page=
+mhtmlData.pages[i];
+
+try{
+
+const a=
+new URL(
+page.location
+);
+
+const b=
+new URL(
+url
+);
+
+if(
+a.href===
+b.href
+){
+
+return i;
+
+}
+
+}catch{}
+
+}
+
+return -1;
+
+}
+
+
+function resolveURL(
+url,
+base
+){
+
+try{
+
+return new URL(
+url,
+base||location.href
+).href;
+
+}catch{
+
+return url;
+
+}
+
+}
+
+
+function restoreResources(
+html,
+resources,
+pageLocation
+){
+
+const map=
+new Map();
+
+for(
+const resource of resources
+){
+
+if(
+!resource.data||
+resource.data.length===0
+){
+
+continue;
+
+}
+
+const type=
+resource.contentType
+.split(";")[0]
+.trim()||
+"application/octet-stream";
+
+const blob=
+new Blob(
+[resource.data],
+{
+type:type
+}
+);
+
+const blobURL=
+URL.createObjectURL(
+blob
+);
+
+if(resource.location){
+
+addResourceMapping(
+map,
+resource.location,
+blobURL
+);
+
+}
+
+if(resource.contentId){
+
+addResourceMapping(
+map,
+"cid:"+
+resource.contentId,
+blobURL
+);
+
+addResourceMapping(
+map,
+"cid:<"+
+resource.contentId+
+">",
+blobURL
+);
+
+}
+
+}
+
+
+const baseMatch=
+html.match(
+/<base[^>]+href\s*=\s*["']([^"']+)["']/i
+);
+
+const baseURL=
+baseMatch?
+baseMatch[1]:
+pageLocation||"";
+
+
+const replaceURL=
+value=>{
+
+if(!value){
+return value;
+}
+
+const original=
+value.trim();
+
+if(
+original.startsWith("data:")||
+original.startsWith("blob:")||
+original.startsWith("#")||
+original.startsWith("javascript:")
+){
+
+return original;
+
+}
+
+const direct=
+lookupResource(
+map,
+original
+);
+
+if(direct){
+return direct;
+}
+
+
+try{
+
+const absolute=
+new URL(
+original,
+baseURL
+).href;
+
+const found=
+lookupResource(
+map,
+absolute
+);
+
+if(found){
+return found;
+}
+
+}catch{}
+
+
+return original;
+
+};
+
+
+html=
+html.replace(
+/(\s(?:src|href|poster|background)\s*=\s*)(["'])(.*?)\2/gi,
+(
+match,
+prefix,
+quote,
+value
+)=>{
+
+const replaced=
+replaceURL(value);
+
+return(
+prefix+
+quote+
+replaced+
+quote
+);
+
+}
+);
+
+
+html=
+html.replace(
+/url\(\s*(["']?)(.*?)\1\s*\)/gi,
+(
+match,
+quote,
+value
+)=>{
+
+const replaced=
+replaceURL(value);
+
+return(
+"url("+
+quote+
+replaced+
+quote+
+")"
+);
+
+}
+);
+
+
+if(
+!/<meta[^>]+charset=/i
+.test(html)
+){
+
+html=
+"<meta charset=\"UTF-8\">"+
+html;
+
+}
+
+
+html=
+html.replace(
+/<base[^>]*>/gi,
+""
+);
+
+
+html=
+"<base href=\""+escapeAttribute(
+pageLocation||""
+)+"\">"+
+html;
+
+
+return html;
+
+}
+
+
+function addResourceMapping(
+map,
+key,
+value
+){
+
+if(!key){
+return;
+}
+
+const normalized=
+normalizeURL(key);
+
+map.set(
+key,
+value
+);
+
+map.set(
+normalized,
+value
+);
+
+try{
+
+const decoded=
+decodeURIComponent(key);
+
+map.set(
+decoded,
+value
+);
+
+map.set(
+normalizeURL(decoded),
+value
+);
+
+}catch{}
+
+}
+
+
+function lookupResource(
+map,
+key
+){
+
+if(map.has(key)){
+return map.get(key);
+}
+
+const normalized=
+normalizeURL(key);
+
+if(map.has(normalized)){
+return map.get(normalized);
+}
+
+try{
+
+const decoded=
+decodeURIComponent(key);
+
+if(map.has(decoded)){
+return map.get(decoded);
+}
+
+const decodedNormalized=
+normalizeURL(decoded);
+
+if(
+map.has(decodedNormalized)
+){
+
+return map.get(
+decodedNormalized
+);
+
+}
+
+}catch{}
+
+return null;
+
+}
+
+
+function normalizeURL(url){
+
+return String(url)
+.trim()
+.replace(
+/^["']|["']$/g,
+""
+)
+.replace(
+/&amp;/gi,
+"&"
+);
+
+}
+
 
 function findHeaderEnd(bytes){
 
@@ -429,6 +1740,7 @@ return -1;
 
 }
 
+
 function getHeaderSeparatorLength(
 bytes,
 pos
@@ -449,6 +1761,7 @@ return 2;
 
 }
 
+
 function splitMultipart(
 bytes,
 boundary
@@ -456,12 +1769,14 @@ boundary
 
 const marker=
 new TextEncoder().encode(
-"--"+boundary
+"--"+
+boundary
 );
 
 const parts=[];
 
-let positions=[];
+const positions=[];
+
 let start=0;
 
 while(true){
@@ -537,7 +1852,10 @@ e-=1;
 if(e>s){
 
 parts.push(
-bytes.slice(s,e)
+bytes.slice(
+s,
+e
+)
 );
 
 }
@@ -547,6 +1865,7 @@ bytes.slice(s,e)
 return parts;
 
 }
+
 
 function indexOfBytes(
 source,
@@ -585,6 +1904,7 @@ return -1;
 
 }
 
+
 function parseHeaders(text){
 
 text=
@@ -601,7 +1921,8 @@ text
 const headers={};
 
 for(
-const line of text.split(/\r?\n/)
+const line of
+text.split(/\r?\n/)
 ){
 
 const index=
@@ -613,13 +1934,18 @@ continue;
 
 const name=
 line
-.slice(0,index)
+.slice(
+0,
+index
+)
 .trim()
 .toLowerCase();
 
 const value=
 line
-.slice(index+1)
+.slice(
+index+1
+)
 .trim();
 
 if(headers[name]){
@@ -630,7 +1956,8 @@ value;
 
 }else{
 
-headers[name]=value;
+headers[name]=
+value;
 
 }
 
@@ -639,6 +1966,7 @@ headers[name]=value;
 return headers;
 
 }
+
 
 function getHeader(
 headers,
@@ -650,6 +1978,7 @@ name.toLowerCase()
 ]||"";
 
 }
+
 
 function getCharset(
 contentType
@@ -669,7 +1998,10 @@ match[2]
 
 }
 
-function cleanContentId(id){
+
+function cleanContentId(
+id
+){
 
 return id
 .replace(
@@ -679,6 +2011,7 @@ return id
 .trim();
 
 }
+
 
 function decodeTransferEncoding(
 bytes,
@@ -712,6 +2045,7 @@ return bytes;
 
 }
 
+
 function decodeBase64Bytes(
 bytes
 ){
@@ -724,7 +2058,8 @@ i<bytes.length;
 i++
 ){
 
-const c=bytes[i];
+const c=
+bytes[i];
 
 if(
 c===9||
@@ -773,6 +2108,7 @@ return new Uint8Array();
 
 }
 
+
 function decodeQuotedPrintable(
 bytes
 ){
@@ -799,6 +2135,7 @@ text[i+2]==="\n"
 ){
 
 i+=2;
+
 continue;
 
 }
@@ -808,6 +2145,7 @@ text[i+1]==="\n"
 ){
 
 i+=1;
+
 continue;
 
 }
@@ -824,7 +2162,10 @@ if(
 ){
 
 output.push(
-parseInt(hex,16)
+parseInt(
+hex,
+16
+)
 );
 
 i+=2;
@@ -846,6 +2187,7 @@ output
 );
 
 }
+
 
 function decodeBytes(
 bytes,
@@ -886,7 +2228,9 @@ try{
 return new TextDecoder(
 charset
 )
-.decode(bytes);
+.decode(
+bytes
+);
 
 }catch{
 
@@ -895,7 +2239,9 @@ try{
 return new TextDecoder(
 "utf-8"
 )
-.decode(bytes);
+.decode(
+bytes
+);
 
 }catch{
 
@@ -909,309 +2255,10 @@ return String.fromCharCode(
 
 }
 
-function restoreResources(
-html,
-resources
+
+function escapeHTML(
+text
 ){
-
-const map=new Map();
-
-for(
-const resource of resources
-){
-
-if(
-!resource.data||
-resource.data.length===0
-){
-
-continue;
-
-}
-
-const type=
-resource
-.contentType
-.split(";")[0]
-.trim()||
-"application/octet-stream";
-
-const blob=
-new Blob(
-[resource.data],
-{
-type:type
-}
-);
-
-const url=
-URL.createObjectURL(
-blob
-);
-
-if(resource.location){
-
-addResourceMapping(
-map,
-resource.location,
-url
-);
-
-}
-
-if(resource.contentId){
-
-addResourceMapping(
-map,
-"cid:"+
-resource.contentId,
-url
-);
-
-addResourceMapping(
-map,
-"cid:<"+
-resource.contentId+
-">",
-url
-);
-
-}
-
-}
-
-const baseMatch=
-html.match(
-/<base[^>]+href\s*=\s*["']([^"']+)["']/i
-);
-
-let baseURL=
-baseMatch?
-baseMatch[1]:
-"";
-
-const replaceURL=
-value=>{
-
-if(!value){
-return value;
-}
-
-const original=
-value.trim();
-
-if(
-original.startsWith("data:")||
-original.startsWith("blob:")||
-original.startsWith("#")||
-original.startsWith("javascript:")
-){
-
-return original;
-
-}
-
-const direct=
-lookupResource(
-map,
-original
-);
-
-if(direct){
-return direct;
-}
-
-if(baseURL){
-
-try{
-
-const absolute=
-new URL(
-original,
-baseURL
-).href;
-
-const found=
-lookupResource(
-map,
-absolute
-);
-
-if(found){
-return found;
-}
-
-}catch{}
-
-}
-
-return original;
-
-};
-
-html=
-html.replace(
-/(\s(?:src|href|poster|background)\s*=\s*)(["'])(.*?)\2/gi,
-(
-match,
-prefix,
-quote,
-value
-)=>{
-
-const replaced=
-replaceURL(value);
-
-return(
-prefix+
-quote+
-replaced+
-quote
-);
-
-}
-);
-
-html=
-html.replace(
-/url\(\s*(["']?)(.*?)\1\s*\)/gi,
-(
-match,
-quote,
-value
-)=>{
-
-const replaced=
-replaceURL(value);
-
-return(
-"url("+
-quote+
-replaced+
-quote+
-")"
-);
-
-}
-);
-
-if(
-!/<meta[^>]+charset=/i
-.test(html)
-){
-
-html=
-"<meta charset=\"UTF-8\">"+
-html;
-
-}
-
-return html;
-
-}
-
-function addResourceMapping(
-map,
-key,
-value
-){
-
-if(!key){
-return;
-}
-
-const normalized=
-normalizeURL(key);
-
-map.set(
-key,
-value
-);
-
-map.set(
-normalized,
-value
-);
-
-try{
-
-const decoded=
-decodeURIComponent(key);
-
-map.set(
-decoded,
-value
-);
-
-map.set(
-normalizeURL(decoded),
-value
-);
-
-}catch{}
-
-}
-
-function lookupResource(
-map,
-key
-){
-
-if(map.has(key)){
-return map.get(key);
-}
-
-const normalized=
-normalizeURL(key);
-
-if(map.has(normalized)){
-return map.get(normalized);
-}
-
-try{
-
-const decoded=
-decodeURIComponent(key);
-
-if(map.has(decoded)){
-return map.get(decoded);
-}
-
-const decodedNormalized=
-normalizeURL(decoded);
-
-if(
-map.has(decodedNormalized)
-){
-
-return map.get(
-decodedNormalized
-);
-
-}
-
-}catch{}
-
-return null;
-
-}
-
-function normalizeURL(url){
-
-return url
-.trim()
-.replace(
-/^["']|["']$/g,
-""
-)
-.replace(
-/&amp;/gi,
-"&"
-);
-
-}
-
-function escapeHTML(text){
 
 return String(text)
 .replace(
@@ -1236,6 +2283,32 @@ return String(text)
 );
 
 }
+
+
+function escapeAttribute(
+text
+){
+
+return String(text)
+.replace(
+/&/g,
+"&amp;"
+)
+.replace(
+/"/g,
+"&quot;"
+)
+.replace(
+/</g,
+"&lt;"
+)
+.replace(
+/>/g,
+"&gt;"
+);
+
+}
+
 </script>
 
 </body>
