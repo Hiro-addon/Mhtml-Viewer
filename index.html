@@ -4,79 +4,90 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>MHTML Viewer</title>
+
 <style>
 *{
 box-sizing:border-box;
 -webkit-tap-highlight-color:transparent;
 }
+
 html,body{
 margin:0;
 width:100%;
 height:100%;
 overflow:hidden;
-background:#0d0d10;
-color:#fff;
+background:#111;
 font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
 }
+
 body{
-overscroll-behavior:none;
+touch-action:none;
 }
+
 #app{
 width:100%;
 height:100%;
 display:flex;
 flex-direction:column;
 }
-header{
-height:62px;
-flex-shrink:0;
+
+#header{
+height:60px;
+min-height:60px;
 display:flex;
 align-items:center;
-gap:7px;
-padding:9px 10px;
-background:#15151a;
-border-bottom:1px solid #29292f;
-z-index:20;
+gap:6px;
+padding:8px;
+background:#17171b;
+color:#fff;
+z-index:100;
 }
-.title{
-font-size:17px;
-font-weight:700;
+
+#title{
 flex:1;
 min-width:0;
+font-size:16px;
+font-weight:600;
 white-space:nowrap;
 overflow:hidden;
 text-overflow:ellipsis;
 }
+
 button{
-border:0;
-background:#29292f;
-color:#fff;
-border-radius:10px;
 height:42px;
 min-width:42px;
+padding:0 12px;
+border:0;
+border-radius:10px;
+background:#303036;
+color:#fff;
 font-size:16px;
 font-weight:600;
-touch-action:manipulation;
 }
+
 button:disabled{
 opacity:.35;
 }
+
 #openButton{
 background:#fff;
 color:#111;
-padding:0 14px;
-font-size:14px;
 }
+
 #fileInput{
-display:none;
+position:absolute;
+width:1px;
+height:1px;
+opacity:0;
 }
+
 #viewerArea{
 position:relative;
-width:100%;
-height:calc(100% - 62px);
+flex:1;
 overflow:hidden;
 background:#fff;
 }
+
 #viewer{
 position:absolute;
 left:0;
@@ -88,51 +99,62 @@ background:#fff;
 display:none;
 transform-origin:0 0;
 }
+
 #status{
 position:absolute;
 left:50%;
 top:50%;
 transform:translate(-50%,-50%);
 width:90%;
-max-width:500px;
 text-align:center;
-color:#aaa;
-z-index:2;
+color:#777;
 }
+
 #status strong{
 display:block;
-font-size:21px;
-color:#fff;
+font-size:22px;
+color:#222;
 margin-bottom:10px;
 }
+
 #status span{
 font-size:14px;
-line-height:1.7;
 }
+
 #loading{
-display:none;
-position:fixed;
+position:absolute;
 inset:0;
-z-index:100;
-background:rgba(0,0,0,.72);
+display:none;
 align-items:center;
 justify-content:center;
-flex-direction:column;
-gap:14px;
+background:rgba(0,0,0,.65);
+z-index:200;
+color:#fff;
 }
-.loader{
-width:40px;
-height:40px;
+
+#loadingBox{
+padding:20px 25px;
+border-radius:14px;
+background:#222;
+text-align:center;
+}
+
+#spinner{
+width:35px;
+height:35px;
+margin:0 auto 12px;
 border:4px solid #555;
 border-top-color:#fff;
 border-radius:50%;
 animation:spin .8s linear infinite;
 }
+
 @keyframes spin{
 to{
 transform:rotate(360deg);
 }
 }
+
 #zoomControls{
 position:absolute;
 right:12px;
@@ -140,56 +162,66 @@ bottom:12px;
 display:none;
 flex-direction:column;
 gap:7px;
-z-index:30;
+z-index:50;
 }
+
 #zoomControls button{
 width:46px;
 height:46px;
 min-width:46px;
-font-size:21px;
+padding:0;
+font-size:22px;
 background:rgba(25,25,30,.92);
-backdrop-filter:blur(10px);
--webkit-backdrop-filter:blur(10px);
 }
+
 #zoomReset{
-font-size:12px!important;
+font-size:11px!important;
 }
+
 #navControls{
 position:absolute;
 left:12px;
 bottom:12px;
 display:none;
 gap:7px;
-z-index:30;
+z-index:50;
 }
+
 #navControls button{
+width:46px;
+min-width:46px;
+padding:0;
 background:rgba(25,25,30,.92);
-backdrop-filter:blur(10px);
--webkit-backdrop-filter:blur(10px);
 }
-#scaleText{
+
+#scale{
 position:absolute;
 left:50%;
-bottom:13px;
+bottom:17px;
 transform:translateX(-50%);
-background:rgba(25,25,30,.85);
-padding:8px 11px;
-border-radius:9px;
-font-size:12px;
-z-index:30;
 display:none;
+padding:7px 10px;
+border-radius:9px;
+background:rgba(25,25,30,.9);
+color:#fff;
+font-size:12px;
+z-index:50;
 pointer-events:none;
 }
-#fullscreenButton{
-font-size:20px;
-}
+
 .error{
-color:#ff6b6b!important;
+color:#d00!important;
 }
-body.fullscreen header{
+
+body.fullscreen #header{
 display:none;
 }
+
 body.fullscreen #viewerArea{
+height:100%;
+}
+
+body.fullscreen #viewer{
 height:100%;
 }
 </style>
@@ -199,9 +231,9 @@ height:100%;
 
 <div id="app">
 
-<header>
+<div id="header">
 
-<div class="title" id="title">
+<div id="title">
 MHTML Viewer
 </div>
 
@@ -210,7 +242,7 @@ MHTML Viewer
 <button id="forwardButton" disabled>›</button>
 
 <button id="openButton">
-MHTMLを開く
+MHTMLを選択
 </button>
 
 <button id="fullscreenButton">
@@ -220,18 +252,16 @@ MHTMLを開く
 <input
 id="fileInput"
 type="file"
-accept=".mhtml,.mht,message/rfc822"
+accept=".mhtml,.mht"
 >
 
-</header>
+</div>
 
 <div id="viewerArea">
 
 <div id="status">
 <strong>MHTML Viewer</strong>
-<span>
-MHTML / MHTファイルを選択してください
-</span>
+<span>MHTML / MHTファイルを選択してください</span>
 </div>
 
 <iframe
@@ -257,20 +287,24 @@ title="MHTML Viewer"
 
 </div>
 
-<div id="scaleText">
+<div id="scale">
 100%
-</div>
-
-</div>
-
 </div>
 
 <div id="loading">
 
-<div class="loader"></div>
+<div id="loadingBox">
+
+<div id="spinner"></div>
 
 <div id="loadingText">
 読み込んでいます…
+</div>
+
+</div>
+
+</div>
+
 </div>
 
 </div>
@@ -283,105 +317,119 @@ const viewer=document.getElementById("viewer");
 const viewerArea=document.getElementById("viewerArea");
 const status=document.getElementById("status");
 const title=document.getElementById("title");
+
 const loading=document.getElementById("loading");
 const loadingText=document.getElementById("loadingText");
 
 const backButton=document.getElementById("backButton");
 const forwardButton=document.getElementById("forwardButton");
 
+const pageBack=document.getElementById("pageBack");
+const pageForward=document.getElementById("pageForward");
+
 const zoomControls=document.getElementById("zoomControls");
 const zoomIn=document.getElementById("zoomIn");
 const zoomOut=document.getElementById("zoomOut");
 const zoomReset=document.getElementById("zoomReset");
 
-const navControls=document.getElementById("navControls");
-const pageBack=document.getElementById("pageBack");
-const pageForward=document.getElementById("pageForward");
+const scaleText=document.getElementById("scale");
 
-const scaleText=document.getElementById("scaleText");
 const fullscreenButton=document.getElementById("fullscreenButton");
 
+let data=null;
 
-let mhtmlData=null;
 let currentPage=0;
 
-let pageHistory=[];
+let history=[];
 let historyIndex=-1;
 
-let scale=1;
-let offsetX=0;
-let offsetY=0;
+let zoom=1;
+let moveX=0;
+let moveY=0;
 
 let dragging=false;
-let dragPointerId=null;
-let dragStartX=0;
-let dragStartY=0;
-let dragStartOffsetX=0;
-let dragStartOffsetY=0;
+let pointerId=null;
 
-let iframeDocument=null;
+let startX=0;
+let startY=0;
+
+let startMoveX=0;
+let startMoveY=0;
 
 
-/* =========================
-   ファイル選択
-========================= */
+/* ファイル選択 */
 
 openButton.addEventListener("click",function(){
+
 fileInput.click();
+
 });
 
 
-fileInput.addEventListener("change",async function(){
+fileInput.addEventListener("change",function(){
 
-const file=fileInput.files&&fileInput.files[0];
+const file=fileInput.files[0];
 
 if(!file){
 return;
 }
 
+loadMHTML(file);
+
+fileInput.value="";
+
+});
+
+
+async function loadMHTML(file){
+
 try{
 
-loading.style.display="flex";
-loadingText.textContent="MHTMLを解析しています…";
+showLoading("MHTMLを解析しています…");
 
 title.textContent=file.name;
 
 const buffer=await file.arrayBuffer();
 
-mhtmlData=parseMHTML(buffer);
+data=parseMHTML(buffer);
 
-if(!mhtmlData.pages.length){
+if(!data.pages.length){
 
-throw new Error("HTMLページが見つかりませんでした");
+throw new Error("MHTML内にHTMLページがありません");
 
 }
 
 currentPage=0;
-pageHistory=[];
+
+history=[];
 historyIndex=-1;
 
-await showPage(0,true);
+await displayPage(0,true);
 
 status.style.display="none";
+
 viewer.style.display="block";
 
 zoomControls.style.display="flex";
+
 navControls.style.display="flex";
+
 scaleText.style.display="block";
 
-updateNavigation();
-
-loading.style.display="none";
+hideLoading();
 
 }catch(error){
 
 console.error(error);
 
-loading.style.display="none";
+hideLoading();
 
 viewer.style.display="none";
+
 zoomControls.style.display="none";
+
 navControls.style.display="none";
+
 scaleText.style.display="none";
 
 status.style.display="block";
@@ -389,23 +437,170 @@ status.style.display="block";
 status.innerHTML=
 "<strong class=\"error\">読み込みに失敗しました</strong>"+
 "<span>"+
-escapeHTML(
-error&&error.message
-?error.message
-:"MHTMLを読み込めませんでした"
-)+
+escapeHTML(error.message||"不明なエラー")+
 "</span>";
 
 }
 
-fileInput.value="";
+}
+
+
+/* ページ表示 */
+
+function displayPage(index,addHistory){
+
+return new Promise(function(resolve,reject){
+
+const page=data.pages[index];
+
+if(!page){
+
+reject(new Error("ページが見つかりません"));
+
+return;
+
+}
+
+currentPage=index;
+
+showLoading("ページを復元しています…");
+
+const html=restoreHTML(
+page.html,
+data.resources,
+page.location
+);
+
+viewer.onload=function(){
+
+resetZoom();
+
+installLinks();
+
+if(addHistory){
+
+history=history.slice(0,historyIndex+1);
+
+history.push(index);
+
+historyIndex=history.length-1;
+
+}
+
+updateNavigation();
+
+hideLoading();
+
+resolve();
+
+};
+
+viewer.onerror=function(){
+
+reject(
+new Error("ページの表示に失敗しました")
+);
+
+};
+
+viewer.srcdoc=html;
 
 });
 
+}
 
-/* =========================
-   戻る・進む
-========================= */
+
+/* MHTML内リンク */
+
+function installLinks(){
+
+try{
+
+const doc=viewer.contentDocument;
+
+if(!doc){
+return;
+}
+
+const links=doc.querySelectorAll("a[href]");
+
+links.forEach(function(link){
+
+link.addEventListener("click",function(event){
+
+const href=link.getAttribute("href");
+
+if(!href){
+return;
+}
+
+if(href.startsWith("#")){
+return;
+}
+
+const absolute=resolveURL(
+href,
+data.pages[currentPage].location
+);
+
+const index=findPage(absolute);
+
+if(index!==-1){
+
+event.preventDefault();
+
+displayPage(index,true);
+
+}
+
+});
+
+});
+
+}catch(error){
+
+console.error(error);
+
+}
+
+}
+
+
+/* 履歴 */
+
+function goBack(){
+
+if(historyIndex<=0){
+return;
+}
+
+historyIndex--;
+
+const index=history[historyIndex];
+
+displayPage(index,false);
+
+updateNavigation();
+
+}
+
+
+function goForward(){
+
+if(historyIndex>=history.length-1){
+return;
+}
+
+historyIndex++;
+
+const index=history[historyIndex];
+
+displayPage(index,false);
+
+updateNavigation();
+
+}
+
 
 backButton.addEventListener("click",goBack);
 forwardButton.addEventListener("click",goForward);
@@ -414,14 +609,27 @@ pageBack.addEventListener("click",goBack);
 pageForward.addEventListener("click",goForward);
 
 
-/* =========================
-   ズーム
-========================= */
+function updateNavigation(){
+
+backButton.disabled=historyIndex<=0;
+
+forwardButton.disabled=
+historyIndex>=history.length-1;
+
+pageBack.disabled=historyIndex<=0;
+
+pageForward.disabled=
+historyIndex>=history.length-1;
+
+}
+
+
+/* ズーム */
 
 zoomIn.addEventListener("click",function(){
 
-zoomAt(
-1.25,
+changeZoom(
+zoom*1.25,
 viewerArea.clientWidth/2,
 viewerArea.clientHeight/2
 );
@@ -431,8 +639,8 @@ viewerArea.clientHeight/2
 
 zoomOut.addEventListener("click",function(){
 
-zoomAt(
-0.8,
+changeZoom(
+zoom*.8,
 viewerArea.clientWidth/2,
 viewerArea.clientHeight/2
 );
@@ -441,47 +649,38 @@ viewerArea.clientHeight/2
 
 
 zoomReset.addEventListener("click",function(){
-resetView();
+
+resetZoom();
+
 });
 
 
-function zoomAt(factor,x,y){
+function changeZoom(newZoom,x,y){
 
-const newScale=clamp(
-scale*factor,
-0.25,
-6
+newZoom=Math.max(
+.25,
+Math.min(6,newZoom)
 );
 
-setScaleAroundPoint(
-newScale,
-x,
-y
-);
+const contentX=(x-moveX)/zoom;
+const contentY=(y-moveY)/zoom;
 
-}
+zoom=newZoom;
 
-
-function setScaleAroundPoint(newScale,x,y){
-
-const contentX=(x-offsetX)/scale;
-const contentY=(y-offsetY)/scale;
-
-scale=newScale;
-
-offsetX=x-contentX*scale;
-offsetY=y-contentY*scale;
+moveX=x-contentX*zoom;
+moveY=y-contentY*zoom;
 
 applyTransform();
 
 }
 
 
-function resetView(){
+function resetZoom(){
 
-scale=1;
-offsetX=0;
-offsetY=0;
+zoom=1;
+
+moveX=0;
+moveY=0;
 
 applyTransform();
 
@@ -492,39 +691,26 @@ function applyTransform(){
 
 viewer.style.transform=
 "translate3d("+
-offsetX+
+moveX+
 "px,"+
-offsetY+
+moveY+
 "px,0) scale("+
-scale+
+zoom+
 ")";
 
 scaleText.textContent=
-Math.round(scale*100)+"%";
+Math.round(zoom*100)+"%";
 
 }
 
 
-function clamp(value,min,max){
-
-return Math.max(
-min,
-Math.min(max,value)
-);
-
-}
-
-
-/* =========================
-   ドラッグ
-   ズーム時のみ
-========================= */
+/* ドラッグ移動 */
 
 viewerArea.addEventListener(
 "pointerdown",
 function(event){
 
-if(scale<=1){
+if(zoom<=1){
 return;
 }
 
@@ -533,17 +719,18 @@ return;
 }
 
 dragging=true;
-dragPointerId=event.pointerId;
 
-dragStartX=event.clientX;
-dragStartY=event.clientY;
+pointerId=event.pointerId;
 
-dragStartOffsetX=offsetX;
-dragStartOffsetY=offsetY;
+startX=event.clientX;
+startY=event.clientY;
+
+startMoveX=moveX;
+startMoveY=moveY;
 
 try{
-viewerArea.setPointerCapture(event.pointerId);
-}catch{}
+viewerArea.setPointerCapture(pointerId);
+}catch(error){}
 
 },
 {
@@ -560,21 +747,21 @@ if(!dragging){
 return;
 }
 
-if(event.pointerId!==dragPointerId){
+if(event.pointerId!==pointerId){
 return;
 }
 
 event.preventDefault();
 
-offsetX=
-dragStartOffsetX+
+moveX=
+startMoveX+
 event.clientX-
-dragStartX;
+startX;
 
-offsetY=
-dragStartOffsetY+
+moveY=
+startMoveY+
 event.clientY-
-dragStartY;
+startY;
 
 applyTransform();
 
@@ -585,11 +772,11 @@ passive:false
 );
 
 
-function stopDragging(event){
+function endDrag(event){
 
 if(
-dragPointerId!==null&&
-event.pointerId!==dragPointerId
+pointerId!==null &&
+event.pointerId!==pointerId
 ){
 return;
 }
@@ -598,45 +785,35 @@ dragging=false;
 
 try{
 
-if(
-dragPointerId!==null
-){
+if(pointerId!==null){
 
-viewerArea.releasePointerCapture(
-dragPointerId
-);
+viewerArea.releasePointerCapture(pointerId);
 
 }
 
-}catch{}
+}catch(error){}
 
-dragPointerId=null;
+pointerId=null;
 
 }
 
 
 viewerArea.addEventListener(
 "pointerup",
-stopDragging
+endDrag
 );
 
 viewerArea.addEventListener(
 "pointercancel",
-stopDragging
+endDrag
 );
 
 
-/* =========================
-   全画面
-========================= */
+/* 全画面 */
 
 fullscreenButton.addEventListener(
 "click",
-toggleFullscreen
-);
-
-
-async function toggleFullscreen(){
+async function(){
 
 try{
 
@@ -650,7 +827,7 @@ await document.documentElement.requestFullscreen();
 
 }
 
-}catch{
+}catch(error){
 
 document.body.classList.toggle("fullscreen");
 
@@ -658,7 +835,7 @@ document.body.classList.toggle("fullscreen");
 
 updateFullscreenButton();
 
-}
+});
 
 
 document.addEventListener(
@@ -682,387 +859,207 @@ fullscreenButton.textContent="⛶";
 }
 
 
-/* =========================
-   ページ表示
-========================= */
+/* ローディング */
 
-function showPage(index,addHistory){
+function showLoading(text){
 
-return new Promise(function(resolve,reject){
-
-if(
-!mhtmlData||
-!mhtmlData.pages||
-!mhtmlData.pages[index]
-){
-
-resolve();
-
-return;
-
-}
-
-currentPage=index;
-
-const page=mhtmlData.pages[index];
+loadingText.textContent=text;
 
 loading.style.display="flex";
-loadingText.textContent="ページを復元しています…";
-
-const html=restoreResources(
-page.html,
-mhtmlData.resources,
-page.location
-);
-
-let finished=false;
-
-viewer.onload=function(){
-
-if(finished){
-return;
-}
-
-finished=true;
-
-iframeDocument=viewer.contentDocument;
-
-installLinks();
-
-resetView();
-
-if(addHistory){
-
-pageHistory=
-pageHistory.slice(
-0,
-historyIndex+1
-);
-
-pageHistory.push(index);
-
-historyIndex=
-pageHistory.length-1;
 
 }
 
-updateNavigation();
 
-setTimeout(function(){
+function hideLoading(){
 
 loading.style.display="none";
 
-resolve();
-
-},50);
-
-};
-
-viewer.onerror=function(){
-
-if(finished){
-return;
 }
 
-finished=true;
 
-loading.style.display="none";
+/* MHTML解析 */
 
-reject(
-new Error("ページの読み込みに失敗しました")
+function parseMHTML(buffer){
+
+const bytes=new Uint8Array(buffer);
+
+const headerEnd=findHeaderEnd(bytes);
+
+if(headerEnd<0){
+
+throw new Error(
+"MHTMLヘッダーが見つかりません"
 );
 
-};
+}
 
-viewer.srcdoc=html;
+const header=decodeText(
+bytes.slice(0,headerEnd),
+"utf-8"
+);
 
+const match=header.match(
+/boundary\s*=\s*(?:"([^"]+)"|'([^']+)'|([^;\s]+))/i
+);
+
+if(!match){
+
+throw new Error(
+"MHTMLのboundaryが見つかりません"
+);
+
+}
+
+const boundary=
+match[1]||
+match[2]||
+match[3];
+
+const bodyStart=
+headerEnd+
+separatorLength(bytes,headerEnd);
+
+const parts=splitParts(
+bytes.slice(bodyStart),
+boundary
+);
+
+const resources=[];
+const pages=[];
+
+for(let i=0;i<parts.length;i++){
+
+const part=parts[i];
+
+const partHeaderEnd=findHeaderEnd(part);
+
+if(partHeaderEnd<0){
+continue;
+}
+
+const partHeader=decodeText(
+part.slice(0,partHeaderEnd),
+"utf-8"
+);
+
+const bodyStart2=
+partHeaderEnd+
+separatorLength(part,partHeaderEnd);
+
+const headers=parseHeaders(partHeader);
+
+const type=
+getHeader(headers,"content-type");
+
+const encoding=
+getHeader(
+headers,
+"content-transfer-encoding"
+).toLowerCase();
+
+const location=
+getHeader(
+headers,
+"content-location"
+);
+
+const contentId=
+cleanContentId(
+getHeader(
+headers,
+"content-id"
+)
+);
+
+const encoded=part.slice(bodyStart2);
+
+const decoded=decodeTransfer(
+encoded,
+encoding
+);
+
+resources.push({
+type:type,
+location:location,
+contentId:contentId,
+data:decoded
+});
+
+if(type.toLowerCase().includes("text/html")){
+
+const charset=getCharset(type);
+
+const html=decodeText(
+decoded,
+charset
+);
+
+pages.push({
+html:html,
+location:location,
+contentId:contentId
 });
 
 }
 
-
-/* =========================
-   MHTML内リンク
-========================= */
-
-function installLinks(){
-
-if(!iframeDocument){
-return;
 }
 
-const links=
-iframeDocument.querySelectorAll("a[href]");
-
-links.forEach(function(link){
-
-link.addEventListener(
-"click",
-function(event){
-
-const href=link.getAttribute("href");
-
-if(!href){
-return;
-}
-
-const target=resolveURL(
-href,
-mhtmlData.pages[currentPage].location
-);
-
-const pageIndex=findPageByURL(target);
-
-if(pageIndex>=0){
-
-event.preventDefault();
-
-showPage(
-pageIndex,
-true
-);
-
-}
-
-},
-false
-);
-
-});
+return{
+pages:pages,
+resources:resources
+};
 
 }
 
 
-/* =========================
-   履歴
-========================= */
+/* HTML復元 */
 
-function goBack(){
-
-if(historyIndex<=0){
-return;
-}
-
-historyIndex--;
-
-const index=
-pageHistory[historyIndex];
-
-showPage(
-index,
-false
-);
-
-updateNavigation();
-
-}
-
-
-function goForward(){
-
-if(
-historyIndex>=pageHistory.length-1
-){
-return;
-}
-
-historyIndex++;
-
-const index=
-pageHistory[historyIndex];
-
-showPage(
-index,
-false
-);
-
-updateNavigation();
-
-}
-
-
-function updateNavigation(){
-
-backButton.disabled=
-historyIndex<=0;
-
-forwardButton.disabled=
-historyIndex>=pageHistory.length-1;
-
-pageBack.disabled=
-historyIndex<=0;
-
-pageForward.disabled=
-historyIndex>=pageHistory.length-1;
-
-}
-
-
-/* =========================
-   ページ検索
-========================= */
-
-function findPageByURL(url){
-
-if(!url){
-return -1;
-}
-
-const normalized=normalizeURL(url);
-
-for(
-let i=0;
-i<mhtmlData.pages.length;
-i++
-){
-
-if(
-normalizeURL(
-mhtmlData.pages[i].location
-)===normalized
-){
-
-return i;
-
-}
-
-}
-
-try{
-
-const target=new URL(url);
-
-for(
-let i=0;
-i<mhtmlData.pages.length;
-i++
-){
-
-try{
-
-const pageURL=
-new URL(
-mhtmlData.pages[i].location
-);
-
-if(
-pageURL.href===target.href
-){
-
-return i;
-
-}
-
-}catch{}
-
-}
-
-}catch{}
-
-return -1;
-
-}
-
-
-/* =========================
-   URL
-========================= */
-
-function resolveURL(url,base){
-
-try{
-
-return new URL(
-url,
-base||location.href
-).href;
-
-}catch{
-
-return url;
-
-}
-
-}
-
-
-/* =========================
-   リソース復元
-========================= */
-
-function restoreResources(
+function restoreHTML(
 html,
 resources,
 pageLocation
 ){
 
-const map=new Map();
+const resourceMap=new Map();
 
-for(
-const resource of resources
-){
+resources.forEach(function(resource){
 
-if(
-!resource.data||
-resource.data.length===0
-){
-continue;
+if(!resource.data.length){
+return;
 }
 
-const type=
-resource.contentType
-.split(";")[0]
-.trim()||
+const mime=
+resource.type.split(";")[0].trim()||
 "application/octet-stream";
 
 const blob=new Blob(
 [resource.data],
 {
-type:type
+type:mime
 }
 );
 
-const blobURL=
-URL.createObjectURL(blob);
+const url=URL.createObjectURL(blob);
 
 if(resource.location){
 
-addResourceMapping(
-map,
-resource.location,
-blobURL
+resourceMap.set(
+normalize(resource.location),
+url
 );
 
 }
 
 if(resource.contentId){
 
-addResourceMapping(
-map,
-"cid:"+resource.contentId,
-blobURL
-);
-
-addResourceMapping(
-map,
-"cid:<"+resource.contentId+">",
-blobURL
+resourceMap.set(
+"cid:"+normalize(resource.contentId),
+url
 );
 
 }
 
-}
-
-
-const baseMatch=
-html.match(
-/<base[^>]+href\s*=\s*["']([^"']+)["']/i
-);
-
-const baseURL=
-baseMatch?
-baseMatch[1]:
-pageLocation||"";
+});
 
 
 function replaceURL(value){
@@ -1071,62 +1068,66 @@ if(!value){
 return value;
 }
 
-const original=value.trim();
+value=value.trim();
 
 if(
-original.startsWith("data:")||
-original.startsWith("blob:")||
-original.startsWith("#")||
-original.startsWith("javascript:")
+value.startsWith("data:")||
+value.startsWith("blob:")||
+value.startsWith("#")||
+value.startsWith("javascript:")
 ){
 
-return original;
+return value;
 
 }
 
-const direct=
-lookupResource(
-map,
-original
+if(value.startsWith("cid:")){
+
+const cid=normalize(
+value.substring(4)
 );
 
-if(direct){
-return direct;
+if(resourceMap.has("cid:"+cid)){
+
+return resourceMap.get("cid:"+cid);
+
+}
+
+}
+
+if(resourceMap.has(normalize(value))){
+
+return resourceMap.get(
+normalize(value)
+);
+
 }
 
 try{
 
-const absolute=
-new URL(
-original,
-baseURL
+const absolute=new URL(
+value,
+pageLocation||location.href
 ).href;
 
-const found=
-lookupResource(
-map,
-absolute
+if(resourceMap.has(normalize(absolute))){
+
+return resourceMap.get(
+normalize(absolute)
 );
 
-if(found){
-return found;
 }
 
-}catch{}
+}catch(error){}
 
-return original;
+return value;
 
 }
 
 
 html=html.replace(
 /(\s(?:src|href|poster|background)\s*=\s*)(["'])(.*?)\2/gi,
-function(
-match,
-prefix,
-quote,
-value
-){
+function(match,prefix,quote,value){
 
 return(
 prefix+
@@ -1141,11 +1142,7 @@ quote
 
 html=html.replace(
 /url\(\s*(["']?)(.*?)\1\s*\)/gi,
-function(
-match,
-quote,
-value
-){
+function(match,quote,value){
 
 return(
 "url("+
@@ -1160,14 +1157,11 @@ quote+
 
 
 html=html.replace(
-/<base[^>]*>/gi,
+/<base\b[^>]*>/gi,
 ""
 );
 
-
-if(
-!/<meta[^>]+charset=/i.test(html)
-){
+if(!/<meta[^>]+charset/i.test(html)){
 
 html=
 "<meta charset=\"UTF-8\">"+
@@ -1180,280 +1174,327 @@ return html;
 }
 
 
-/* =========================
-   リソースマップ
-========================= */
+/* ページ検索 */
 
-function addResourceMapping(
-map,
-key,
-value
+function findPage(url){
+
+const target=normalize(url);
+
+for(let i=0;i<data.pages.length;i++){
+
+if(
+normalize(data.pages[i].location)===
+target
 ){
 
-if(!key){
-return;
-}
-
-const normalized=
-normalizeURL(key);
-
-map.set(key,value);
-map.set(normalized,value);
-
-try{
-
-const decoded=
-decodeURIComponent(key);
-
-map.set(decoded,value);
-map.set(
-normalizeURL(decoded),
-value
-);
-
-}catch{}
+return i;
 
 }
 
-
-function lookupResource(
-map,
-key
-){
-
-if(map.has(key)){
-return map.get(key);
-}
-
-const normalized=
-normalizeURL(key);
-
-if(map.has(normalized)){
-return map.get(normalized);
 }
 
 try{
 
-const decoded=
-decodeURIComponent(key);
+const targetURL=new URL(url);
 
-if(map.has(decoded)){
-return map.get(decoded);
-}
+for(let i=0;i<data.pages.length;i++){
 
-const decodedNormalized=
-normalizeURL(decoded);
+try{
 
-if(
-map.has(decodedNormalized)
-){
-
-return map.get(
-decodedNormalized
+const pageURL=new URL(
+data.pages[i].location
 );
 
-}
+if(pageURL.href===targetURL.href){
 
-}catch{}
-
-return null;
+return i;
 
 }
 
+}catch(error){}
 
-function normalizeURL(url){
+}
 
-return String(url)
-.trim()
-.replace(
-/^["']|["']$/g,
-""
-)
-.replace(
-/&amp;/gi,
-"&"
-);
+}catch(error){}
+
+return -1;
 
 }
 
 
-/* =========================
-   MIME解析
-========================= */
+/* URL */
 
-function parseMHTML(buffer){
+function resolveURL(url,base){
 
-const bytes=new Uint8Array(buffer);
+try{
 
-const headerEnd=
-findHeaderEnd(bytes);
+return new URL(
+url,
+base||location.href
+).href;
 
-if(headerEnd<0){
+}catch(error){
 
-throw new Error(
-"MHTMLのヘッダーを確認できませんでした"
-);
+return url;
 
 }
 
-const header=
-decodeBytes(
-bytes.slice(0,headerEnd),
-"utf-8"
-);
-
-const boundaryMatch=
-header.match(
-/boundary\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s;]+))/i
-);
-
-if(!boundaryMatch){
-
-throw new Error(
-"MHTMLのboundaryが見つかりませんでした"
-);
-
 }
 
-const boundary=
-boundaryMatch[1]||
-boundaryMatch[2]||
-boundaryMatch[3];
 
-const bodyStart=
-headerEnd+
-getHeaderSeparatorLength(
-bytes,
-headerEnd
+/* ヘッダー */
+
+function parseHeaders(text){
+
+text=text.replace(
+/\r?\n[ \t]+/g,
+" "
 );
 
-const parts=
-splitMultipart(
-bytes.slice(bodyStart),
-boundary
-);
+const result={};
 
-const resources=[];
-const pages=[];
+const lines=text.split(/\r?\n/);
 
-for(
-const part of parts
-){
+for(let i=0;i<lines.length;i++){
 
-if(
-!part||
-part.length===0
-){
+const line=lines[i];
+
+const index=line.indexOf(":");
+
+if(index<0){
 continue;
 }
 
-const pHeaderEnd=
-findHeaderEnd(part);
-
-if(pHeaderEnd<0){
-continue;
-}
-
-const pHeader=
-decodeBytes(
-part.slice(0,pHeaderEnd),
-"utf-8"
-);
-
-const pBodyStart=
-pHeaderEnd+
-getHeaderSeparatorLength(
-part,
-pHeaderEnd
-);
-
-const encodedBody=
-part.slice(pBodyStart);
-
-const headers=
-parseHeaders(pHeader);
-
-const contentType=
-getHeader(
-headers,
-"content-type"
-)||"";
-
-const transfer=
-(
-getHeader(
-headers,
-"content-transfer-encoding"
-)||""
-)
+const key=line
+.substring(0,index)
 .trim()
 .toLowerCase();
 
-const location=
-getHeader(
-headers,
-"content-location"
-)||"";
+const value=line
+.substring(index+1)
+.trim();
 
-const contentId=
-cleanContentId(
-getHeader(
-headers,
-"content-id"
-)||""
+result[key]=value;
+
+}
+
+return result;
+
+}
+
+
+function getHeader(headers,name){
+
+return headers[
+name.toLowerCase()
+]||"";
+
+}
+
+
+function getCharset(type){
+
+const match=type.match(
+/charset\s*=\s*(?:"([^"]+)"|([^;\s]+))/i
 );
 
-const data=
-decodeTransferEncoding(
-encodedBody,
-transfer
-);
+if(!match){
+return "utf-8";
+}
 
-const charset=
-getCharset(contentType)||
-"utf-8";
+return(
+match[1]||
+match[2]||
+"utf-8"
+).trim();
+
+}
+
+
+function cleanContentId(value){
+
+return String(value||"")
+.replace(/^</,"")
+.replace(/>$/,"")
+.trim();
+
+}
+
+
+/* エンコード */
+
+function decodeTransfer(bytes,encoding){
+
+if(encoding.includes("base64")){
+
+return decodeBase64(bytes);
+
+}
 
 if(
-contentType
-.toLowerCase()
-.includes("text/html")
+encoding.includes("quoted-printable")
 ){
 
-const html=
-decodeBytes(
-data,
-charset
+return decodeQuotedPrintable(bytes);
+
+}
+
+return bytes;
+
+}
+
+
+function decodeBase64(bytes){
+
+let text="";
+
+for(let i=0;i<bytes.length;i++){
+
+const c=bytes[i];
+
+if(
+c===9||
+c===10||
+c===13||
+c===32
+){
+
+continue;
+
+}
+
+text+=String.fromCharCode(c);
+
+}
+
+try{
+
+const binary=atob(text);
+
+const result=new Uint8Array(
+binary.length
 );
 
-pages.push({
-html:html,
-location:location,
-contentId:contentId,
-index:pages.length
-});
+for(let i=0;i<binary.length;i++){
+
+result[i]=
+binary.charCodeAt(i);
 
 }
 
-resources.push({
-contentType:contentType,
-location:location,
-contentId:contentId,
-data:data
-});
+return result;
+
+}catch(error){
+
+return new Uint8Array();
 
 }
 
-return{
-pages:pages,
-resources:resources
+}
+
+
+function decodeQuotedPrintable(bytes){
+
+const text=new TextDecoder(
+"latin1"
+).decode(bytes);
+
+const result=[];
+
+for(let i=0;i<text.length;i++){
+
+if(text[i]==="="){
+
+if(
+text[i+1]==="\r"&&
+text[i+2]==="\n"
+){
+
+i+=2;
+
+continue;
+
+}
+
+if(text[i+1]==="\n"){
+
+i++;
+
+continue;
+
+}
+
+const hex=text.substring(
+i+1,
+i+3
+);
+
+if(/^[0-9a-fA-F]{2}$/.test(hex)){
+
+result.push(
+parseInt(hex,16)
+);
+
+i+=2;
+
+continue;
+
+}
+
+}
+
+result.push(
+text.charCodeAt(i)&255
+);
+
+}
+
+return new Uint8Array(result);
+
+}
+
+
+/* 文字コード */
+
+function decodeText(bytes,charset){
+
+charset=String(
+charset||"utf-8"
+)
+.toLowerCase()
+.trim();
+
+const aliases={
+utf8:"utf-8",
+utf_8:"utf-8",
+sjis:"shift-jis",
+"shift_jis":"shift-jis",
+"x-sjis":"shift-jis",
+"euc_jp":"euc-jp"
 };
 
+charset=
+aliases[charset]||
+charset;
+
+try{
+
+return new TextDecoder(
+charset
+).decode(bytes);
+
+}catch(error){
+
+return new TextDecoder(
+"utf-8"
+).decode(bytes);
+
+}
+
 }
 
 
-/* =========================
-   Multipart
-========================= */
+/* Multipart */
 
 function findHeaderEnd(bytes){
 
@@ -1498,10 +1539,7 @@ return -1;
 }
 
 
-function getHeaderSeparatorLength(
-bytes,
-pos
-){
+function separatorLength(bytes,pos){
 
 if(
 bytes[pos]===13&&
@@ -1519,41 +1557,38 @@ return 2;
 }
 
 
-function splitMultipart(
-bytes,
-boundary
-){
+function splitParts(bytes,boundary){
 
 const marker=
 new TextEncoder().encode(
 "--"+boundary
 );
 
-const parts=[];
 const positions=[];
 
 let start=0;
 
 while(true){
 
-const pos=
-indexOfBytes(
+const position=indexOf(
 bytes,
 marker,
 start
 );
 
-if(pos<0){
+if(position<0){
 break;
 }
 
-positions.push(pos);
+positions.push(position);
 
 start=
-pos+
+position+
 marker.length;
 
 }
+
+const parts=[];
 
 for(
 let i=1;
@@ -1561,52 +1596,49 @@ i<positions.length;
 i++
 ){
 
-const partStart=
-positions[i-1]+marker.length;
+let startPos=
+positions[i-1]+
+marker.length;
 
-const partEnd=
+let endPos=
 positions[i];
 
-let s=partStart;
-
 if(
-bytes[s]===13&&
-bytes[s+1]===10
+bytes[startPos]===13&&
+bytes[startPos+1]===10
 ){
 
-s+=2;
+startPos+=2;
 
 }else if(
-bytes[s]===10
+bytes[startPos]===10
 ){
 
-s+=1;
+startPos++;
 
 }
 
-let e=partEnd;
-
 if(
-e>=2&&
-bytes[e-2]===13&&
-bytes[e-1]===10
+endPos>=2&&
+bytes[endPos-2]===13&&
+bytes[endPos-1]===10
 ){
 
-e-=2;
+endPos-=2;
 
 }else if(
-e>=1&&
-bytes[e-1]===10
+endPos>=1&&
+bytes[endPos-1]===10
 ){
 
-e-=1;
+endPos--;
 
 }
 
-if(e>s){
+if(endPos>startPos){
 
 parts.push(
-bytes.slice(s,e)
+bytes.slice(startPos,endPos)
 );
 
 }
@@ -1618,11 +1650,7 @@ return parts;
 }
 
 
-function indexOfBytes(
-source,
-target,
-start
-){
+function indexOf(source,target,start){
 
 outer:
 for(
@@ -1656,346 +1684,32 @@ return -1;
 }
 
 
-/* =========================
-   ヘッダー
-========================= */
+/* その他 */
 
-function parseHeaders(text){
+function normalize(value){
 
-text=
-text
-.replace(
-/\r\n[ \t]+/g,
-" "
-)
-.replace(
-/\n[ \t]+/g,
-" "
-);
-
-const headers={};
-
-for(
-const line of
-text.split(/\r?\n/)
-){
-
-const index=
-line.indexOf(":");
-
-if(index<0){
-continue;
-}
-
-const name=
-line
-.slice(0,index)
+return String(value||"")
 .trim()
-.toLowerCase();
-
-const value=
-line
-.slice(index+1)
-.trim();
-
-if(headers[name]){
-
-headers[name]+=", "+value;
-
-}else{
-
-headers[name]=value;
-
-}
-
-}
-
-return headers;
-
-}
-
-
-function getHeader(
-headers,
-name
-){
-
-return headers[
-name.toLowerCase()
-]||"";
-
-}
-
-
-function getCharset(
-contentType
-){
-
-const match=
-contentType.match(
-/charset\s*=\s*(?:"([^"]+)"|([^;\s]+))/i
-);
-
-return match?
-(
-match[1]||
-match[2]
-).trim():
-"utf-8";
-
-}
-
-
-function cleanContentId(id){
-
-return id
 .replace(
-/^<|>$/g,
+/^["']|["']$/g,
 ""
 )
-.trim();
-
-}
-
-
-/* =========================
-   エンコード
-========================= */
-
-function decodeTransferEncoding(
-bytes,
-encoding
-){
-
-if(
-encoding.includes("base64")
-){
-
-return decodeBase64Bytes(bytes);
-
-}
-
-if(
-encoding.includes("quoted-printable")||
-encoding.includes("quopri")
-){
-
-return decodeQuotedPrintable(bytes);
-
-}
-
-return bytes;
-
-}
-
-
-function decodeBase64Bytes(bytes){
-
-let text="";
-
-for(
-let i=0;
-i<bytes.length;
-i++
-){
-
-const c=bytes[i];
-
-if(
-c===9||
-c===10||
-c===13||
-c===32
-){
-
-continue;
-
-}
-
-text+=String.fromCharCode(c);
-
-}
-
-try{
-
-const binary=atob(text);
-
-const result=
-new Uint8Array(
-binary.length
-);
-
-for(
-let i=0;
-i<binary.length;
-i++
-){
-
-result[i]=
-binary.charCodeAt(i);
-
-}
-
-return result;
-
-}catch{
-
-return new Uint8Array();
-
-}
-
-}
-
-
-function decodeQuotedPrintable(bytes){
-
-const output=[];
-
-const text=
-new TextDecoder(
-"latin1"
-).decode(bytes);
-
-for(
-let i=0;
-i<text.length;
-i++
-){
-
-if(text[i]==="="){
-
-if(
-text[i+1]==="\r"&&
-text[i+2]==="\n"
-){
-
-i+=2;
-continue;
-
-}
-
-if(
-text[i+1]==="\n"
-){
-
-i+=1;
-continue;
-
-}
-
-const hex=
-text.slice(
-i+1,
-i+3
-);
-
-if(
-/^[0-9A-Fa-f]{2}$/.test(hex)
-){
-
-output.push(
-parseInt(hex,16)
-);
-
-i+=2;
-
-continue;
-
-}
-
-}
-
-output.push(
-text.charCodeAt(i)&255
-);
-
-}
-
-return new Uint8Array(output);
-
-}
-
-
-function decodeBytes(bytes,charset){
-
-charset=
-(
-charset||
-"utf-8"
-)
-.toLowerCase()
 .replace(
-/["']/g,
-""
-)
-.trim();
-
-const aliases={
-utf8:"utf-8",
-utf_8:"utf-8",
-shift_jis:"shift-jis",
-sjis:"shift-jis",
-"x-sjis":"shift-jis",
-"iso-2022-jp":"iso-2022-jp",
-"euc-jp":"euc-jp",
-"us-ascii":"windows-1252"
-};
-
-charset=
-aliases[charset]||
-charset;
-
-try{
-
-return new TextDecoder(
-charset
-).decode(bytes);
-
-}catch{
-
-try{
-
-return new TextDecoder(
-"utf-8"
-).decode(bytes);
-
-}catch{
-
-let result="";
-
-for(
-let i=0;
-i<bytes.length;
-i++
-){
-
-result+=String.fromCharCode(
-bytes[i]
+/&amp;/gi,
+"&"
 );
 
 }
 
-return result;
 
-}
+function escapeHTML(value){
 
-}
-
-}
-
-
-/* =========================
-   HTMLエスケープ
-========================= */
-
-function escapeHTML(text){
-
-return String(text)
+return String(value)
 .replace(/&/g,"&amp;")
 .replace(/</g,"&lt;")
 .replace(/>/g,"&gt;")
 .replace(/"/g,"&quot;")
-.replace(/'/g,"&#039;");
+.replace(/'/g,"&#39;");
 
 }
 
