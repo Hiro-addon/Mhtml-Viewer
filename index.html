@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>MHTML Viewer</title>
+<style>
+*{
+    box-sizing:border-box;
+    -webkit-tap-highlight-color:transparent;
+}
+html,body{
+    margin:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:#0d0d10;
+    color:#fff;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+#app{
+    width:100%;
+    height:100%;
+    display:flex;
+    flex-direction:column;
+}
+header{
+    height:62px;
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    padding:10px 14px;
+    gap:10px;
+    background:#15151a;
+    border-bottom:1px solid #29292f;
+}
+.title{
+    font-size:18px;
+    font-weight:700;
+    flex:1;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+#openButton{
+    border:0;
+    border-radius:12px;
+    padding:11px 16px;
+    background:#fff;
+    color:#111;
+    font-size:14px;
+    font-weight:700;
+}
+#fileInput{
+    display:none;
+}
+#status{
+    position:absolute;
+    left:50%;
+    top:50%;
+    transform:translate(-50%,-50%);
+    text-align:center;
+    width:90%;
+    max-width:500px;
+    color:#aaa;
+}
+#status strong{
+    display:block;
+    color:#fff;
+    font-size:20px;
+    margin-bottom:10px;
+}
+#status span{
+    font-size:14px;
+    line-height:1.7;
+}
+#viewer{
+    width:100%;
+    height:calc(100% - 62px);
+    border:0;
+    background:#fff;
+    display:none;
+}
+#loading{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.7);
+    z-index:10;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    gap:14px;
+}
+.loader{
+    width:38px;
+    height:38px;
+    border:4px solid #555;
+    border-top-color:#fff;
+    border-radius:50%;
+    animation:spin .8s linear infinite;
+}
+@keyframes spin{
+    to{transform:rotate(360deg)}
+}
+.error{
+    color:#ff6b6b!important;
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+
+<header>
+    <div class="title" id="title">MHTML Viewer</div>
+    <button id="openButton">MHTMLを開く</button>
+    <input id="fileInput" type="file" accept=".mhtml,.mht,application/x-mimearchive,message/rfc822">
+</header>
+
+<div id="status">
+    <strong>MHTML Viewer</strong>
+    <span>MHTML / MHTファイルを選択してください</span>
+</div>
+
+<iframe id="viewer"></iframe>
+
+</div>
+
+<div id="loading">
+    <div class="loader"></div>
+    <div id="loadingText">読み込んでいます…</div>
+</div>
+
+<script>
+const fileInput=document.getElementById("fileInput");
+const openButton=document.getElementById("openButton");
+const viewer=document.getElementById("viewer");
+const status=document.getElementById("status");
+const title=document.getElementById("title");
+const loading=document.getElementById("loading");
+const loadingText=document.getElementById("loadingText");
+
+openButton.addEventListener("click",()=>{
+    fileInput.click();
+});
+
+fileInput.addEventListener("change",async()=>{
+    const file=fileInput.files[0];
+    if(!file)return;
+
+    try{
+        loading.style.display="flex";
+        loadingText.textContent="MHTMLを解析しています…";
+        title.textContent=file.name;
+
+        const buffer=await file.arrayBuffer();
+        const result=parseMHTML(buffer);
+
+        if(!result.html){
+            throw new Error("HTML部分が見つかりませんでした");
+        }
+
+        loadingText.textContent="ページを復元しています…";
+
+        const html=restoreResources(result.html,result.resources);
+
+        viewer.srcdoc=html;
+        viewer.style.display="block";
+        status.style.display="none";
+
+        setTimeout(()=>{
+            loading.style.display="none";
+        },200);
+
+    }catch(error){
+        console.error(error);
+
+        loading.style.display="none";
+        viewer.style.display="none";
+        status.style.display="block";
+
+        status.innerHTML=
+            "<strong class='error'>読み込みに失敗しました</strong>"+
+            "<span>"+escapeHTML(error.message||"MHTMLを読み込めませんでした")+"</span>";
+    }
+
+    fileInput.value="";
+});
+
+function parseMHTML(buffer){
+
+    const bytes=new Uint8Array(buffer);
+
+    let headerEnd=findHeaderEnd(bytes);
+
+    if(headerEnd<0){
+        throw new Error("MHTMLのヘッダーを確認できませんでした");
+    }
+
+    const headerBytes=bytes.slice(0,headerEnd);
+    const header=decodeBytes(headerBytes,"utf-8");
+
+    const boundaryMatch=
+        header.match(/boundary\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s;]+))/i);
+
+    if(!boundaryMatch){
+        throw new Error("MHTMLのboundaryが見つかりませんでした");
+    }
+
+    const boundary=boundaryMatch[1]||boundaryMatch[2]||boundaryMatch[3];
+
+    const bodyStart=headerEnd+getHeaderSeparatorLength(bytes,headerEnd);
+
+    const parts=splitMultipart(bytes.slice(bodyStart),boundary);
+
+    const resources=[];
+    let htmlPart=null;
+
+    for(const part of parts){
+
+        if(!part||part.length===0)continue;
+
+        const pHeaderEnd=findHeaderEnd(part);
+
+        if(pHeaderEnd<0)continue;
+
+        const pHeader=decodeBytes(part.slice(0,pHeaderEnd),"utf-8");
+        const pBodyStart=pHeaderEnd+getHeaderSeparatorLength(part,pHeaderEnd);
+        const encodedBody=part.slice(pBodyStart);
+
+        const headers=parseHeaders(pHeader);
+
+        const contentType=
+            getHeader(headers,"content-type")||"";
+
+        const transfer=
+            (getHeader(headers,"content-transfer-encoding")||"")
+            .trim()
+            .toLowerCase();
+
+        const location=getHeader(headers,"content-location")||"";
+        const contentId=cleanContentId(getHeader(headers,"content-id")||"");
+
+        const data=decodeTransferEncoding(encodedBody,transfer);
+
+        const charset=getCharset(contentType)||"utf-8";
+
+        if(contentType.toLowerCase().includes("text/html")){
+            const text=decodeBytes(data,charset);
+            htmlPart={
+                html:text,
+                location:location,
+                contentId:contentId
+            };
+        }
+
+        resources.push({
+            contentType:contentType,
+            location:location,
+            contentId:contentId,
+            data:data
+        });
+    }
+
+    return {
+        html:htmlPart?htmlPart.html:null,
+        htmlLocation:htmlPart?htmlPart.location:"",
+        resources:resources
+    };
+}
+
+function findHeaderEnd(bytes){
+
+    for(let i=0;i<bytes.length-3;i++){
+        if(
+            bytes[i]===13 &&
+            bytes[i+1]===10 &&
+            bytes[i+2]===13 &&
+            bytes[i+3]===10
+        ){
+            return i;
+        }
+    }
+
+    for(let i=0;i<bytes.length-1;i++){
+        if(bytes[i]===10&&bytes[i+1]===10){
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+function getHeaderSeparatorLength(bytes,pos){
+
+    if(
+        bytes[pos]===13 &&
+        bytes[pos+1]===10 &&
+        bytes[pos+2]===13 &&
+        bytes[pos+3]===10
+    ){
+        return 4;
+    }
+
+    return 2;
+}
+
+function splitMultipart(bytes,boundary){
+
+    const marker=new TextEncoder().encode("--"+boundary);
+    const parts=[];
+
+    let positions=[];
+    let start=0;
+
+    while(true){
+
+        const pos=indexOfBytes(bytes,marker,start);
+
+        if(pos<0)break;
+
+        positions.push(pos);
+        start=pos+marker.length;
+    }
+
+    for(let i=1;i<positions.length;i++){
+
+        const partStart=positions[i-1]+marker.length;
+        const partEnd=positions[i];
+
+        let s=partStart;
+
+        if(bytes[s]===13&&bytes[s+1]===10)s+=2;
+        else if(bytes[s]===10)s+=1;
+
+        let e=partEnd;
+
+        if(e>=2&&bytes[e-2]===13&&bytes[e-1]===10)e-=2;
+        else if(e>=1&&bytes[e-1]===10)e-=1;
+
+        if(e>s){
+            parts.push(bytes.slice(s,e));
+        }
+    }
+
+    return parts;
+}
+
+function indexOfBytes(source,target,start){
+
+    outer:
+    for(let i=start;i<=source.length-target.length;i++){
+
+        for(let j=0;j<target.length;j++){
+            if(source[i+j]!==target[j])continue outer;
+        }
+
+        return i;
+    }
+
+    return -1;
+}
+
+function parseHeaders(text){
+
+    text=text.replace(/\r\n[ \t]+/g," ").replace(/\n[ \t]+/g," ");
+
+    const headers={};
+
+    for(const line of text.split(/\r?\n/)){
+
+        const index=line.indexOf(":");
+
+        if(index<0)continue;
+
+        const name=line.slice(0,index).trim().toLowerCase();
+        const value=line.slice(index+1).trim();
+
+        if(headers[name]){
+            headers[name]+=", "+value;
+        }else{
+            headers[name]=value;
+        }
+    }
+
+    return headers;
+}
+
+function getHeader(headers,name){
+    return headers[name.toLowerCase()]||"";
+}
+
+function getCharset(contentType){
+
+    const match=contentType.match(/charset\s*=\s*(?:"([^"]+)"|([^;\s]+))/i);
+
+    return match?(match[1]||match[2]).trim():"utf-8";
+}
+
+function cleanContentId(id){
+
+    return id
+        .replace(/^<|>$/g,"")
+        .trim();
+}
+
+function decodeTransferEncoding(bytes,encoding){
+
+    if(encoding.includes("base64")){
+        return decodeBase64Bytes(bytes);
+    }
+
+    if(
+        encoding.includes("quoted-printable")||
+        encoding.includes("quopri")
+    ){
+        return decodeQuotedPrintable(bytes);
+    }
+
+    return bytes;
+}
+
+function decodeBase64Bytes(bytes){
+
+    let text="";
+
+    for(let i=0;i<bytes.length;i++){
+        const c=bytes[i];
+
+        if(
+            c===9||
+            c===10||
+            c===13||
+            c===32
+        ){
+            continue;
+        }
+
+        text+=String.fromCharCode(c);
+    }
+
+    try{
+        const binary=atob(text);
+        const result=new Uint8Array(binary.length);
+
+        for(let i=0;i<binary.length;i++){
+            result[i]=binary.charCodeAt(i);
+        }
+
+        return result;
+
+    }catch{
+        return new Uint8Array();
+    }
+}
+
+function decodeQuotedPrintable(bytes){
+
+    const output=[];
+    const text=new TextDecoder("latin1").decode(bytes);
+
+    for(let i=0;i<text.length;i++){
+
+        if(text[i]==="="){
+
+            if(
+                text[i+1]==="\r"&&
+                text[i+2]==="\n"
+            ){
+                i+=2;
+                continue;
+            }
+
+            if(text[i+1]==="\n"){
+                i+=1;
+                continue;
+            }
+
+            const hex=text.slice(i+1,i+3);
+
+            if(/^[0-9A-Fa-f]{2}$/.test(hex)){
+                output.push(parseInt(hex,16));
+                i+=2;
+                continue;
+            }
+        }
+
+        output.push(text.charCodeAt(i)&255);
+    }
+
+    return new Uint8Array(output);
+}
+
+function decodeBytes(bytes,charset){
+
+    charset=(charset||"utf-8")
+        .toLowerCase()
+        .replace(/["']/g,"")
+        .trim();
+
+    const aliases={
+        "utf8":"utf-8",
+        "utf_8":"utf-8",
+        "shift_jis":"shift-jis",
+        "sjis":"shift-jis",
+        "x-sjis":"shift-jis",
+        "iso-2022-jp":"iso-2022-jp",
+        "euc-jp":"euc-jp",
+        "us-ascii":"windows-1252"
+    };
+
+    charset=aliases[charset]||charset;
+
+    try{
+        return new TextDecoder(charset).decode(bytes);
+    }catch{
+        try{
+            return new TextDecoder("utf-8").decode(bytes);
+        }catch{
+            return String.fromCharCode(...bytes);
+        }
+    }
+}
+
+function restoreResources(html,resources){
+
+    const map=new Map();
+
+    for(const resource of resources){
+
+        if(!resource.data||resource.data.length===0)continue;
+
+        const type=
+            resource.contentType.split(";")[0].trim()||
+            "application/octet-stream";
+
+        const blob=new Blob([resource.data],{type});
+        const url=URL.createObjectURL(blob);
+
+        if(resource.location){
+            addResourceMapping(map,resource.location,url);
+        }
+
+        if(resource.contentId){
+            addResourceMapping(
+                map,
+                "cid:"+resource.contentId,
+                url
+            );
+
+            addResourceMapping(
+                map,
+                "cid:<"+resource.contentId+">",
+                url
+            );
+        }
+    }
+
+    const baseMatch=html.match(
+        /<base[^>]+href\s*=\s*["']([^"']+)["']/i
+    );
+
+    let baseURL=baseMatch?baseMatch[1]:"";
+
+    const replaceURL=value=>{
+
+        if(!value)return value;
+
+        const original=value.trim();
+
+        if(
+            original.startsWith("data:")||
+            original.startsWith("blob:")||
+            original.startsWith("#")||
+            original.startsWith("javascript:")
+        ){
+            return original;
+        }
+
+        const direct=lookupResource(map,original);
+
+        if(direct)return direct;
+
+        if(baseURL){
+
+            try{
+                const absolute=new URL(original,baseURL).href;
+                const found=lookupResource(map,absolute);
+                if(found)return found;
+            }catch{}
+        }
+
+        return original;
+    };
+
+    html=html.replace(
+        /(\s(?:src|href|poster|background)\s*=\s*)(["'])(.*?)\2/gi,
+        (match,prefix,quote,value)=>{
+            const replaced=replaceURL(value);
+            return prefix+quote+replaced+quote;
+        }
+    );
+
+    html=html.replace(
+        /url\(\s*(["']?)(.*?)\1\s*\)/gi,
+        (match,quote,value)=>{
+            const replaced=replaceURL(value);
+            return "url("+quote+replaced+quote+")";
+        }
+    );
+
+    html=html.replace(
+        /<form([^>]+action\s*=\s*)(["'])(.*?)\2/gi,
+        (match,prefix,quote,value)=>{
+            return match;
+        }
+    );
+
+    if(!/<meta[^>]+charset=/i.test(html)){
+        html=
+            "<meta charset=\"UTF-8\">"+
+            "<base target=\"_blank\">"+
+            html;
+    }
+
+    return html;
+}
+
+function addResourceMapping(map,key,value){
+
+    if(!key)return;
+
+    const normalized=normalizeURL(key);
+
+    map.set(key,value);
+    map.set(normalized,value);
+
+    try{
+        const decoded=decodeURIComponent(key);
+        map.set(decoded,value);
+        map.set(normalizeURL(decoded),value);
+    }catch{}
+}
+
+function lookupResource(map,key){
+
+    if(map.has(key))return map.get(key);
+
+    const normalized=normalizeURL(key);
+
+    if(map.has(normalized))return map.get(normalized);
+
+    try{
+        const decoded=decodeURIComponent(key);
+
+        if(map.has(decoded))return map.get(decoded);
+
+        const decodedNormalized=normalizeURL(decoded);
+
+        if(map.has(decodedNormalized)){
+            return map.get(decodedNormalized);
+        }
+    }catch{}
+
+    return null;
+}
+
+function normalizeURL(url){
+
+    return url
+        .trim()
+        .replace(/^["']|["']$/g,"")
+        .replace(/&amp;/gi,"&");
+}
+
+function escapeHTML(text){
+
+    return String(text)
+        .replace(/&/g,"&amp;")
+        .replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;")
+        .replace(/'/g,"&#039;");
+}
+</script>
+
+</body>
+</html>
